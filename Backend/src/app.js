@@ -13,6 +13,7 @@ import orderRoutes from "./routes/order.routes.js";
 import reviewRoutes from "./routes/review.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
 import cartRoutes from "./routes/cart.routes.js";
+import paymentRoutes from "./routes/payment.routes.js";
 
 const app = express();
 
@@ -58,6 +59,7 @@ app.use("/api/products/:productId/reviews", reviewRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/cart", cartRoutes);
+app.use("/api/payment", paymentRoutes);
 
 // Apply rate limiters to specific high-risk endpoints
 app.use("/api/analytics/event", analyticsLimiter);

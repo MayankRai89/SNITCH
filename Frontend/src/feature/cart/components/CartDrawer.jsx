@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router";
+import { useRazorpay } from "react-razorpay";
 import {
   closeCart,
   removeFromCart,
@@ -13,6 +14,7 @@ import {
   clearCartServer,
   fetchCartSummary,
 } from "../state/cart.slice";
+import { paymentService } from "../services/payment.service";
 
 export default function CartDrawer() {
   const dispatch = useDispatch();
@@ -22,10 +24,16 @@ export default function CartDrawer() {
     (state) => state.cart
   );
 
+  // Razorpay hook
+  const { error: rzpError, isLoading: isRzpLoading, Razorpay } = useRazorpay();
+
   const [inputCoupon, setInputCoupon] = useState("");
   const [couponError, setCouponError] = useState("");
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
   const [orderSuccess, setOrderSuccess] = useState(false);
+  const [confirmedOrderId, setConfirmedOrderId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("razorpay"); // 'razorpay' or 'cod'
 
   // Address state
   const [address, setAddress] = useState(null);
@@ -75,7 +83,7 @@ export default function CartDrawer() {
 
   if (!isOpen) return null;
 
-  // Local fallback calculations for instant responsiveness before server responds
+  // Local fallback calculations
   const totalItemsCount = summary?.itemCount ?? items.reduce((acc, item) => acc + item.quantity, 0);
   const localSubtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const subtotal = summary?.subtotal ?? localSubtotal;
@@ -157,8 +165,11 @@ export default function CartDrawer() {
     setShowAddressModal(false);
   };
 
-  const handleCheckout = () => {
-    // If user is not logged in, close drawer and redirect to login
+  // ── Unified Checkout Handler (Razorpay / COD) ──────────────────────────────
+  const handleCheckout = async () => {
+    setCheckoutError("");
+
+    // 1. Authentication Check
     if (!user) {
       dispatch(closeCart());
       navigate("/login", {
@@ -167,25 +178,128 @@ export default function CartDrawer() {
       return;
     }
 
-    // If user has not filled delivery address, open address form
+    // 2. Shipping Address Check
     if (!address || !address.street || !address.pincode) {
       setShowAddressModal(true);
       return;
     }
 
     setIsCheckingOut(true);
-    setTimeout(() => {
-      setIsCheckingOut(false);
-      setOrderSuccess(true);
-      dispatch(clearCart());
-      if (user) {
-        dispatch(clearCartServer());
+
+    // 3. Razorpay Payment Gateway Flow
+    if (paymentMethod === "razorpay") {
+      try {
+        const orderData = await paymentService.createOrder({
+          items,
+          couponCode,
+        });
+
+        if (!orderData?.order_id) {
+          throw new Error("Could not initialize Razorpay payment order.");
+        }
+
+        const options = {
+          key: orderData.key || "rzp_test_SNITCH12345",
+          amount: orderData.amount, // in paise
+          currency: orderData.currency || "INR",
+          name: "SNITCH Marketplace",
+          description: "Payment for exclusive streetwear drops",
+          image: "https://images.unsplash.com/photo-1552346154-21d32810aba3?w=200&auto=format&fit=crop&q=80",
+          order_id: orderData.order_id,
+          handler: async (response) => {
+            try {
+              const verifyRes = await paymentService.verifyPayment({
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+                items,
+                couponCode,
+                shippingAddress: address,
+              });
+
+              if (verifyRes.success) {
+                setConfirmedOrderId(verifyRes.order?.id || response.razorpay_payment_id);
+                setOrderSuccess(true);
+                dispatch(clearCart());
+                if (user) dispatch(clearCartServer());
+
+                setTimeout(() => {
+                  setOrderSuccess(false);
+                  dispatch(closeCart());
+                  navigate("/buyer/dashboard");
+                }, 3500);
+              }
+            } catch (vErr) {
+              console.error("[PaymentVerification] error:", vErr);
+              setCheckoutError(vErr.message || "Payment verification failed. Please check with support.");
+            } finally {
+              setIsCheckingOut(false);
+            }
+          },
+          prefill: {
+            name: address?.fullName || user?.full_name || "",
+            email: user?.email || "",
+            contact: address?.phone || user?.mobile || "",
+          },
+          notes: {
+            address: `${address.street}, ${address.city} - ${address.pincode}`,
+          },
+          theme: {
+            color: "#f5c518",
+          },
+          modal: {
+            ondismiss: () => {
+              setIsCheckingOut(false);
+            },
+          },
+        };
+
+        if (Razorpay) {
+          const razorpayInstance = new Razorpay(options);
+          razorpayInstance.on("payment.failed", function (failResponse) {
+            console.error("[Razorpay Payment Failed]:", failResponse.error);
+            setCheckoutError(failResponse.error?.description || "Payment was not completed.");
+            setIsCheckingOut(false);
+          });
+          razorpayInstance.open();
+        } else {
+          // Fallback if Razorpay SDK script is still loading in browser
+          const fallbackRazorpay = new window.Razorpay(options);
+          fallbackRazorpay.open();
+        }
+      } catch (err) {
+        console.error("[Razorpay Checkout] error:", err);
+        setCheckoutError(err.message || "Failed to launch Razorpay gateway.");
+        setIsCheckingOut(false);
       }
-      setTimeout(() => {
-        setOrderSuccess(false);
-        dispatch(closeCart());
-      }, 3500);
-    }, 1500);
+    } else {
+      // 4. Cash On Delivery Flow
+      try {
+        const codRes = await paymentService.createCodOrder({
+          items,
+          couponCode,
+          shippingAddress: address,
+        });
+
+        if (codRes.success) {
+          setConfirmedOrderId(codRes.order?.id || `COD_${Date.now()}`);
+          setOrderSuccess(true);
+          dispatch(clearCart());
+          if (user) dispatch(clearCartServer());
+
+          setTimeout(() => {
+            setOrderSuccess(false);
+            dispatch(closeCart());
+            navigate("/buyer/dashboard");
+          }, 3500);
+        }
+      } catch (err) {
+        console.error("[COD Checkout] error:", err);
+        setCheckoutError(err.message || "Failed to place COD order.");
+      } finally {
+        setIsCheckingOut(false);
+      }
+    }
   };
 
   return (
@@ -280,13 +394,13 @@ export default function CartDrawer() {
               ✓
             </div>
             <h3 className="text-2xl font-black text-white mb-2 tracking-tight">
-              Order Placed Successfully!
+              Payment & Order Confirmed!
             </h3>
             <p className="text-sm text-[#9a9078] max-w-xs mb-6">
-              Thank you for shopping at SNITCH. Your exclusive drops are being prepared for dispatch.
+              Thank you for shopping at SNITCH. Your exclusive drops are secured and scheduled for dispatch.
             </p>
-            <div className="text-xs font-mono text-[#f5c518] bg-[#1a1a1a] px-4 py-2 rounded border border-[#333]">
-              ORDER ID: #{Math.random().toString(36).substring(2, 9).toUpperCase()}
+            <div className="text-xs font-mono text-[#f5c518] bg-[#1a1a1a] px-4 py-2.5 rounded-lg border border-[#333]">
+              ORDER REF: #{confirmedOrderId.toString().toUpperCase()}
             </div>
           </div>
         )}
@@ -366,7 +480,6 @@ export default function CartDrawer() {
 
                   {/* Pricing and Quantity */}
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#252525]">
-                    {/* Price */}
                     <div className="flex items-baseline gap-2">
                       <span className="text-sm font-bold text-[#f5c518]">
                         ₹{(item.price * item.quantity).toLocaleString("en-IN")}
@@ -378,7 +491,6 @@ export default function CartDrawer() {
                       )}
                     </div>
 
-                    {/* Quantity controls */}
                     <div className="flex items-center border border-[#333] rounded bg-[#141414]">
                       <button
                         onClick={() => handleUpdateQty(item, -1)}
@@ -401,7 +513,6 @@ export default function CartDrawer() {
                   </div>
                 </div>
 
-                {/* Remove button */}
                 <button
                   onClick={() => handleRemove(item)}
                   className="absolute top-3 right-3 text-[#666] hover:text-red-400 text-xs transition-colors p-1"
@@ -459,7 +570,7 @@ export default function CartDrawer() {
               )}
             </div>
 
-            {/* Delivery Address Section (for logged-in users) */}
+            {/* Delivery Address Section */}
             {user && (
               <div className="p-3 bg-[#181818] border border-[#2a2a2a] rounded-lg flex items-center justify-between gap-3 text-xs">
                 <div className="flex items-start gap-2.5 overflow-hidden">
@@ -484,6 +595,46 @@ export default function CartDrawer() {
                 </button>
               </div>
             )}
+
+            {/* Payment Method Selector */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[#888]">
+                Payment Method
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("razorpay")}
+                  className={`p-2.5 rounded-lg border text-left flex items-center gap-2.5 transition-all ${
+                    paymentMethod === "razorpay"
+                      ? "bg-[#f5c518]/10 border-[#f5c518] text-white"
+                      : "bg-[#181818] border-[#2a2a2a] text-[#888] hover:text-white"
+                  }`}
+                >
+                  <span className="text-base">⚡</span>
+                  <div>
+                    <p className="font-bold text-xs leading-tight">Razorpay</p>
+                    <p className="text-[10px] text-[#9a9078]">UPI / Cards / NetBanking</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("cod")}
+                  className={`p-2.5 rounded-lg border text-left flex items-center gap-2.5 transition-all ${
+                    paymentMethod === "cod"
+                      ? "bg-[#f5c518]/10 border-[#f5c518] text-white"
+                      : "bg-[#181818] border-[#2a2a2a] text-[#888] hover:text-white"
+                  }`}
+                >
+                  <span className="text-base">💵</span>
+                  <div>
+                    <p className="font-bold text-xs leading-tight">Cash on Delivery</p>
+                    <p className="text-[10px] text-[#9a9078]">Pay at doorstep</p>
+                  </div>
+                </button>
+              </div>
+            </div>
 
             {/* Price Calculations */}
             <div className="flex flex-col gap-1.5 text-xs border-t border-[#222] pt-3">
@@ -519,17 +670,23 @@ export default function CartDrawer() {
               </div>
             </div>
 
+            {checkoutError && (
+              <div className="p-2.5 rounded bg-red-950/40 border border-red-900/60 text-red-400 text-xs font-semibold">
+                {checkoutError}
+              </div>
+            )}
+
             {/* Checkout Action Button */}
             <button
               onClick={handleCheckout}
-              disabled={isCheckingOut}
-              className="w-full py-4 rounded bg-[#f5c518] hover:opacity-90 active:scale-[0.99] text-[#111] font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-60"
+              disabled={isCheckingOut || isRzpLoading}
+              className="w-full py-4 rounded bg-[#f5c518] hover:opacity-90 active:scale-[0.99] text-[#111] font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-60 cursor-pointer"
             >
               {isCheckingOut ? (
-                <>Processing Payment…</>
+                <>Connecting to {paymentMethod === "razorpay" ? "Razorpay Gateway…" : "Order Service…"}</>
               ) : (
                 <>
-                  Checkout • ₹{finalTotal.toLocaleString("en-IN")}
+                  {paymentMethod === "razorpay" ? "Pay with Razorpay" : "Confirm COD Order"} • ₹{finalTotal.toLocaleString("en-IN")}
                   <svg
                     width="14"
                     height="14"
