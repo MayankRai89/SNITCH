@@ -35,6 +35,8 @@ export const useGetSellerProfile = () => {
       const message = err?.response?.data?.message || "Failed to fetch seller profile.";
       dispatch(setSellerError(message));
       throw err;
+    } finally {
+      dispatch(setSellerLoading(false));
     }
   };
 };
@@ -54,6 +56,8 @@ export const useCreateSellerProfile = () => {
       const message = err?.response?.data?.message || "Failed to create seller profile.";
       dispatch(setSellerError(message));
       throw err;
+    } finally {
+      dispatch(setSellerLoading(false));
     }
   };
 };
@@ -73,6 +77,8 @@ export const useUpdateSellerProfile = () => {
       const message = err?.response?.data?.message || "Failed to update seller profile.";
       dispatch(setSellerError(message));
       throw err;
+    } finally {
+      dispatch(setSellerLoading(false));
     }
   };
 };

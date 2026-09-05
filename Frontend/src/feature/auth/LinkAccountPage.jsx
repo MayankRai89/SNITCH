@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router";
+import { useDispatch } from "react-redux";
 import { completeGoogleLink } from "./services/auth.api";
+import { login } from "./state/auth.slice";
 
 export default function LinkAccountPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const token = params.get("token") ?? "";
 
   const [password, setPassword] = useState("");
@@ -35,6 +38,9 @@ export default function LinkAccountPage() {
     try {
       const data = await completeGoogleLink({ token, password });
       if (data.success) {
+        if (data.user) {
+          dispatch(login({ user: data.user, token: null }));
+        }
         navigate(data.redirect ?? "/homepage", { replace: true });
       }
     } catch (err) {

@@ -10,6 +10,11 @@ if (!config.supabaseUrl || (!config.supabaseServiceRoleKey && !config.supabasePu
 // Use service role key on the backend to bypass RLS.
 // Falls back to publishable key if service role key is not yet configured.
 const supabaseKey = config.supabaseServiceRoleKey ?? config.supabasePublishableKey;
-const supabase = createClient(config.supabaseUrl, supabaseKey);
+const supabase = createClient(config.supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+});
 
 export default supabase;

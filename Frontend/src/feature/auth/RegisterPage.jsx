@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { useDispatch } from "react-redux";
 import { register, googleLogin } from "./services/auth.api";
+import { login } from "./state/auth.slice";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -37,9 +40,12 @@ export default function RegisterPage() {
         password: form.password,
         role: form.isSeller ? "seller" : "buyer",
       });
+      if (data.user) {
+        dispatch(login({ user: data.user, token: null }));
+      }
       // Use role-based redirect returned by backend
       // seller → /seller/dashboard, buyer → /homepage
-      navigate(data.redirect ?? "/homepage");
+      navigate(data.redirect ?? "/homepage", { replace: true });
     } catch (err) {
       const status = err?.response?.status;
       const message = err?.response?.data?.message ?? "Something went wrong. Please try again.";

@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router";
+import { useDispatch } from "react-redux";
 import { completeGoogleSignup } from "./services/auth.api";
+import { login } from "./state/auth.slice";
 
 export default function RoleSelectPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const token = searchParams.get("token");
   const [selected, setSelected] = useState(null); // "buyer" | "seller"
@@ -23,6 +26,9 @@ export default function RoleSelectPage() {
 
     try {
       const data = await completeGoogleSignup({ token, role: selected });
+      if (data.user) {
+        dispatch(login({ user: data.user, token: null }));
+      }
       navigate(data.redirect ?? "/homepage", { replace: true });
     } catch (err) {
       const message =

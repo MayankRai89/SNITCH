@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
+import { useDispatch } from "react-redux";
 import { LoginUser, googleLogin } from "./services/auth.api";
+import { login } from "./state/auth.slice";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useDispatch();
 
   // Notice passed from RegisterPage when user already exists
   const notice = location.state?.notice ?? "";
@@ -26,8 +29,11 @@ export default function LoginPage() {
 
     try {
       const data = await LoginUser({ email: form.email, password: form.password });
+      if (data.user) {
+        dispatch(login({ user: data.user, token: null }));
+      }
       // Backend sets the cookie; redirect based on role
-      navigate(data.redirect ?? "/homepage");
+      navigate(data.redirect ?? "/homepage", { replace: true });
     } catch (err) {
       const message =
         err?.response?.data?.message ?? "Something went wrong. Please try again.";
