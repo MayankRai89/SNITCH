@@ -181,12 +181,19 @@ const ProductModel = {
 
     if (search && search.trim()) {
       const term = search.trim();
-      query = query.or(`title.ilike.%${term}%,description.ilike.%${term}%,category.ilike.%${term}%`);
+      const words = term.split(/\s+/).filter(Boolean);
+      if (words.length === 1) {
+        query = query.or(`title.ilike.%${term}%,description.ilike.%${term}%,category.ilike.%${term}%`);
+      } else {
+        // Multi-word matching: check title, description, or category
+        const orClauses = words.map(w => `title.ilike.%${w}%,description.ilike.%${w}%,category.ilike.%${w}%`).join(',');
+        query = query.or(orClauses);
+      }
     }
 
-    if (sort === "price_asc") {
+    if (sort === "price-low" || sort === "price_asc") {
       query = query.order("price", { ascending: true });
-    } else if (sort === "price_desc") {
+    } else if (sort === "price-high" || sort === "price_desc") {
       query = query.order("price", { ascending: false });
     } else {
       query = query.order("created_at", { ascending: false });

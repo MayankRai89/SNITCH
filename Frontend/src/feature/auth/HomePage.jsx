@@ -12,6 +12,48 @@ import {
   CATEGORY_TREE,
 } from "../product/utils/categoryHierarchy";
 
+// ── Smart Synonym & Query Expander ─────────────────────────────────────────────
+const SYNONYMS = {
+  shoes: ["footwear", "sneakers", "kicks", "loafers", "slides", "shoes", "shoe"],
+  shoe: ["footwear", "sneakers", "kicks", "loafers", "slides", "shoes", "shoe"],
+  sneaker: ["footwear", "sneakers", "kicks", "shoes", "shoe"],
+  sneakers: ["footwear", "sneakers", "kicks", "shoes", "shoe"],
+  kicks: ["footwear", "sneakers", "shoes"],
+  tee: ["clothing", "t-shirts", "t-shirt", "tshirts", "oversized", "tee", "tees"],
+  tees: ["clothing", "t-shirts", "t-shirt", "tshirts", "oversized", "tee", "tees"],
+  tshirt: ["clothing", "t-shirts", "t-shirt", "tshirts", "tee", "tees"],
+  "t-shirt": ["clothing", "t-shirts", "t-shirt", "tshirts", "tee", "tees"],
+  shirt: ["clothing", "shirts", "t-shirts", "t-shirt", "tee"],
+  hoodie: ["streetwear", "hoodies", "sweatshirt", "jacket", "hoodie", "hoodies"],
+  hoodies: ["streetwear", "hoodies", "sweatshirt", "jacket", "hoodie", "hoodies"],
+  jacket: ["streetwear", "jackets", "bomber", "windbreaker", "jacket"],
+  jackets: ["streetwear", "jackets", "bomber", "windbreaker", "jacket"],
+  cargo: ["clothing", "cargos", "pants", "parachutes", "cargo"],
+  cargos: ["clothing", "cargos", "pants", "parachutes", "cargo"],
+  pant: ["clothing", "pants", "cargos", "jeans", "denim", "trousers"],
+  pants: ["clothing", "pants", "cargos", "jeans", "denim", "trousers"],
+  jeans: ["clothing", "jeans", "denim", "pants"],
+  denim: ["clothing", "jeans", "denim", "pants", "jackets"],
+  men: ["Men", "men", "male", "boys", "boy"],
+  mens: ["Men", "men", "male", "boys", "boy"],
+  women: ["Women", "women", "female", "girls", "girl", "crop"],
+  womens: ["Women", "women", "female", "girls", "girl", "crop"],
+  tech: ["electronics", "gadgets", "audio", "earbuds", "watch"],
+  audio: ["electronics", "accessories", "headphones", "earbuds", "speakers"],
+  accessories: ["accessories", "chains", "caps", "wallets", "belts", "bags"],
+};
+
+// Popular trending search recommendations
+const TRENDING_SEARCHES = [
+  "Chunky Sneakers",
+  "Oversized Acid Wash Tee",
+  "Heavyweight Hoodie",
+  "Parachute Cargos",
+  "Retro Dunks",
+  "Men's Streetwear",
+  "Women's Crop Hoodies",
+];
+
 // Top visual category story items for quick browsing
 const QUICK_STORIES = [
   {
@@ -26,7 +68,7 @@ const QUICK_STORIES = [
   {
     id: "clothing-tees",
     label: "Oversized Tees",
-    sub: "Graphic & Plain",
+    sub: "Graphic & Heavy",
     tag: "DROP",
     icon: "👕",
     targetCategory: "clothing",
@@ -35,7 +77,7 @@ const QUICK_STORIES = [
   },
   {
     id: "streetwear-hoodies",
-    label: "Hoodies & Jackets",
+    label: "Hoodies & Sweats",
     sub: "Winter & Heavy",
     tag: "TREND",
     icon: "🔥",
@@ -46,7 +88,7 @@ const QUICK_STORIES = [
   {
     id: "clothing-cargos",
     label: "Cargos & Denim",
-    sub: "Baggy & Slim",
+    sub: "Baggy & Parachute",
     tag: "NEW",
     icon: "👖",
     targetCategory: "clothing",
@@ -100,7 +142,7 @@ const FEATURES = [
         <path d="M2 12l10 5 10-5" />
       </svg>
     ),
-    title: "100% Verified Drops",
+    title: "100% Verified Streetwear",
     desc: "Every product is authenticated directly from verified independent sellers.",
   },
   {
@@ -127,314 +169,78 @@ const FEATURES = [
   },
 ];
 
-// ── SearchOverlay ──────────────────────────────────────────────────────────────
+// ── Smart Multi-Field Product Search Scorer ────────────────────────────────────
+function scoreProductMatch(product, queryWords) {
+  if (!queryWords || queryWords.length === 0) return 1;
 
-function SearchOverlay({ onClose, products, onSelectProduct }) {
-  const [query, setQuery] = useState("");
-  const inputRef = useRef(null);
+  let totalScore = 0;
+  const title = (product.title || "").toLowerCase();
+  const desc = (product.description || "").toLowerCase();
+  const cat = (product.category || "").toLowerCase();
+  const subcat = (product.subcategory || "").toLowerCase();
+  const gender = (product.gender || "").toLowerCase();
+  const store = (product.seller?.store_name || "").toLowerCase();
+  const tags = (product.tags || []).map((t) => t.toLowerCase());
+  const colors = (product.colors || []).map((c) => c.toLowerCase());
 
-  const searchData = useMemo(() => {
-    const prods = (products || []).map((p) => ({
-      type: "product",
-      id: p.id,
-      slug: p.slug,
-      label: p.title,
-      sub: `₹${Number(p.price).toLocaleString("en-IN")} • ${p.seller?.store_name || "SNITCH Seller"}`,
-      tag: p.tags?.[0] || null,
-      cover: p.cover_image_url,
-      raw: p,
-    }));
+  for (const rawWord of queryWords) {
+    const word = rawWord.toLowerCase();
+    const syns = SYNONYMS[word] || [word];
 
-    const cats = Object.entries(CATEGORY_TREE).map(([key, cat]) => ({
-      type: "category",
-      id: key,
-      label: `${cat.icon} ${cat.label}`,
-      sub: "Explore Category",
-      tag: "CATEGORY",
-      cover: null,
-    }));
+    let wordMatched = false;
 
-    return [...prods, ...cats];
-  }, [products]);
+    // Check title (highest weight)
+    if (title.includes(word)) {
+      totalScore += title.startsWith(word) ? 40 : 25;
+      wordMatched = true;
+    }
 
-  const results = useMemo(() => {
-    if (!query.trim()) return searchData.slice(0, 10);
-    const q = query.toLowerCase();
-    return searchData.filter(
-      (item) =>
-        item.label.toLowerCase().includes(q) ||
-        (item.sub && item.sub.toLowerCase().includes(q))
-    );
-  }, [searchData, query]);
+    // Check category / subcategory
+    if (cat.includes(word) || subcat.includes(word)) {
+      totalScore += 20;
+      wordMatched = true;
+    }
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    // Check synonyms against category, subcategory, title
+    for (const s of syns) {
+      if (cat.includes(s) || subcat.includes(s) || title.includes(s)) {
+        totalScore += 15;
+        wordMatched = true;
+        break;
+      }
+    }
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+    // Check gender
+    if (gender === word || syns.includes(gender)) {
+      totalScore += 15;
+      wordMatched = true;
+    }
 
-  return (
-    <div
-      role="dialog"
-      aria-label="Search Catalog"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 200,
-        backgroundColor: "rgba(0,0,0,0.85)",
-        backdropFilter: "blur(8px)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        paddingTop: "90px",
-        paddingLeft: "16px",
-        paddingRight: "16px",
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "640px",
-          backgroundColor: "#161616",
-          border: "1px solid #2a2a2a",
-          borderRadius: "12px",
-          overflow: "hidden",
-          boxShadow: "0 24px 64px rgba(0,0,0,0.8)",
-        }}
-      >
-        {/* Input */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            padding: "0 16px",
-            borderBottom: "1px solid #2a2a2a",
-            backgroundColor: "#111111",
-          }}
-        >
-          <svg
-            width="18"
-            height="18"
-            fill="none"
-            stroke="#f5c518"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            viewBox="0 0 24 24"
-            style={{ flexShrink: 0 }}
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            id="search-input-overlay"
-            ref={inputRef}
-            type="text"
-            placeholder="Search footwear, oversized tees, hoodies, cargos…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              padding: "18px 12px",
-              fontSize: "15px",
-              color: "#ffffff",
-              caretColor: "#f5c518",
-            }}
-          />
-          {query && (
-            <button
-              onClick={() => setQuery("")}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "#777",
-                padding: "4px",
-              }}
-            >
-              ✕
-            </button>
-          )}
-          <kbd
-            style={{
-              marginLeft: "8px",
-              padding: "2px 7px",
-              fontSize: "10px",
-              color: "#777",
-              border: "1px solid #333",
-              borderRadius: "4px",
-              fontFamily: "monospace",
-            }}
-          >
-            esc
-          </kbd>
-        </div>
+    // Check tags & colors
+    if (tags.some((t) => t.includes(word)) || colors.some((c) => c.includes(word))) {
+      totalScore += 12;
+      wordMatched = true;
+    }
 
-        {/* Results */}
-        <div style={{ maxHeight: "380px", overflowY: "auto" }}>
-          {results.length === 0 ? (
-            <p
-              style={{
-                padding: "32px 20px",
-                fontSize: "13px",
-                color: "#777",
-                textAlign: "center",
-              }}
-            >
-              No products found for &ldquo;
-              <span style={{ color: "#f5c518" }}>{query}</span>
-              &rdquo;
-            </p>
-          ) : (
-            <>
-              <p
-                style={{
-                  padding: "10px 20px 4px",
-                  fontSize: "10px",
-                  color: "#666",
-                  letterSpacing: "0.1em",
-                  textTransform: "uppercase",
-                  fontWeight: 700,
-                }}
-              >
-                {query ? `Results (${results.length})` : "Popular Search Suggestions"}
-              </p>
-              {results.map((item, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    onClose();
-                    if (item.type === "product" && item.raw) {
-                      onSelectProduct(item.raw);
-                    }
-                  }}
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "12px 20px",
-                    background: "transparent",
-                    border: "none",
-                    borderTop: i === 0 ? "none" : "1px solid #202020",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    gap: "12px",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#222222")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.backgroundColor = "transparent")
-                  }
-                >
-                  {item.cover ? (
-                    <img
-                      src={item.cover}
-                      alt={item.label}
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: "6px",
-                        objectFit: "cover",
-                        flexShrink: 0,
-                        border: "1px solid #333",
-                      }}
-                    />
-                  ) : (
-                    <span
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: "6px",
-                        flexShrink: 0,
-                        backgroundColor: "#1a1a1a",
-                        border: "1px solid #333",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "16px",
-                      }}
-                    >
-                      {item.type === "product" ? "🛍️" : "🏷️"}
-                    </span>
-                  )}
+    // Check seller store name
+    if (store.includes(word)) {
+      totalScore += 10;
+      wordMatched = true;
+    }
 
-                  <span style={{ flex: 1 }}>
-                    <span
-                      style={{
-                        display: "block",
-                        fontSize: "13px",
-                        color: "#ffffff",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {item.label}
-                    </span>
-                    <span
-                      style={{
-                        display: "block",
-                        fontSize: "11px",
-                        color: "#9a9078",
-                        marginTop: "1px",
-                      }}
-                    >
-                      {item.sub}
-                    </span>
-                  </span>
+    // Check description
+    if (desc.includes(word)) {
+      totalScore += 5;
+      wordMatched = true;
+    }
 
-                  {item.tag && (
-                    <span
-                      style={{
-                        fontSize: "9px",
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        padding: "3px 7px",
-                        backgroundColor: item.tag === "CATEGORY" ? "#2a2a2a" : "#f5c518",
-                        color: item.tag === "CATEGORY" ? "#f5c518" : "#111111",
-                        borderRadius: "4px",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {item.tag}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </>
-          )}
-        </div>
+    if (!wordMatched) {
+      // If any word has no match anywhere, penalty
+      return 0;
+    }
+  }
 
-        <div
-          style={{
-            padding: "10px 20px",
-            borderTop: "1px solid #222222",
-            display: "flex",
-            alignItems: "center",
-            backgroundColor: "#111111",
-          }}
-        >
-          <span style={{ fontSize: "10px", color: "#666" }}>
-            Press Esc to exit
-          </span>
-          <span style={{ fontSize: "10px", color: "#f5c518", marginLeft: "auto", fontWeight: 600 }}>
-            SNITCH Instant Search
-          </span>
-        </div>
-      </div>
-    </div>
-  );
+  return totalScore;
 }
 
 // ── QuickViewModal ─────────────────────────────────────────────────────────────
@@ -710,12 +516,209 @@ function QuickViewModal({ product, onClose }) {
   );
 }
 
-// ── Navbar ─────────────────────────────────────────────────────────────────────
+// ── ProductCard ────────────────────────────────────────────────────────────────
 
-function Navbar({ onOpenSearch, user, setUser }) {
+function ProductCard({ product, onQuickView }) {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const wishlistItems = useSelector((state) => state.wishlist?.items || []);
+  const isWishlisted = wishlistItems.some((item) => item.productId === product.id);
+
+  const discountPercent =
+    product.compare_at_price && Number(product.compare_at_price) > Number(product.price)
+      ? Math.round(
+          ((Number(product.compare_at_price) - Number(product.price)) /
+            Number(product.compare_at_price)) *
+            100
+        )
+      : null;
+
+  return (
+    <div
+      onClick={() => navigate(`/product/${product.slug || product.id}`)}
+      className="group flex flex-col cursor-pointer transition-all duration-300 rounded-lg overflow-hidden relative"
+      style={{ border: "1px solid #2a2a2a", backgroundColor: "#161616" }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#f5c518")}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#2a2a2a")}
+    >
+      {/* Image Area */}
+      <div className="relative w-full aspect-square flex items-center justify-center overflow-hidden bg-[#121212]">
+        {product.cover_image_url ? (
+          <img
+            src={product.cover_image_url}
+            alt={product.title}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" opacity="0.18">
+            <rect x="8" y="14" width="48" height="36" rx="2" stroke="#f5c518" strokeWidth="2" />
+            <circle cx="32" cy="32" r="10" stroke="#f5c518" strokeWidth="2" />
+          </svg>
+        )}
+
+        {/* Tag badge */}
+        {product.tags?.[0] && (
+          <span
+            className="absolute top-2.5 left-2.5 text-[10px] font-extrabold px-2 py-0.5 tracking-widest uppercase z-10 rounded-sm"
+            style={{ backgroundColor: "#f5c518", color: "#111111" }}
+          >
+            {product.tags[0]}
+          </span>
+        )}
+
+        {/* Discount Badge */}
+        {discountPercent && (
+          <span
+            className="absolute text-[10px] font-bold px-1.5 py-0.5 tracking-wider uppercase bg-red-600 text-white z-10 rounded-sm"
+            style={{
+              top: product.tags?.[0] ? "32px" : "10px",
+              left: "10px",
+            }}
+          >
+            {discountPercent}% OFF
+          </span>
+        )}
+
+        {/* Wishlist Floating Button */}
+        <button
+          type="button"
+          aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+          title={isWishlisted ? "In your Wishlist" : "Add to Wishlist"}
+          onClick={(e) => {
+            e.stopPropagation();
+            dispatch(toggleWishlist(product));
+          }}
+          className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full flex items-center justify-center transition-all bg-[#111111]/80 hover:bg-[#111111] border border-[#333] hover:border-[#f5c518] shadow-md backdrop-blur-sm"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill={isWishlisted ? "#f5c518" : "none"}
+            stroke={isWishlisted ? "#f5c518" : "#ffffff"}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+        </button>
+
+        {/* Quick View Button on Hover */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onQuickView) onQuickView(product);
+            }}
+            className="text-xs font-bold uppercase tracking-widest px-4 py-2 rounded shadow-lg bg-[#1a1a1a] hover:bg-[#f5c518] hover:text-[#111] text-white border border-[#444] transition-all transform translate-y-2 group-hover:translate-y-0"
+          >
+            Quick View
+          </button>
+        </div>
+      </div>
+
+      {/* Info Card */}
+      <div className="p-3.5 flex flex-col gap-1 flex-1 justify-between">
+        <div>
+          <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-widest text-[#9a9078] mb-1">
+            <span className="truncate">{product.seller?.store_name || "SNITCH DROP"}</span>
+            {product.gender && <span className="text-[#666]">{product.gender}</span>}
+          </div>
+          <h4 className="text-sm font-semibold text-[#e5e2e1] line-clamp-1 group-hover:text-[#f5c518] transition-colors">
+            {product.title}
+          </h4>
+        </div>
+
+        <div className="flex items-baseline gap-2 mt-2 pt-1 border-t border-[#222]">
+          <span className="text-base font-black text-[#f5c518]">
+            ₹{Number(product.price).toLocaleString("en-IN")}
+          </span>
+          {product.compare_at_price && Number(product.compare_at_price) > Number(product.price) && (
+            <span className="text-xs text-[#666] line-through">
+              ₹{Number(product.compare_at_price).toLocaleString("en-IN")}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Shelf Section ──────────────────────────────────────────────────────────────
+
+function CategorizedShelf({ title, subtitle, badge, icon, products, onQuickView, onExploreCategory }) {
+  if (!products || products.length === 0) return null;
+
+  return (
+    <section className="w-full px-4 sm:px-8 py-8 border-b border-[#222222]">
+      <div className="flex items-end justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-1.5 h-8 bg-[#f5c518] rounded-full" />
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{icon}</span>
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                {title}
+              </h2>
+              {badge && (
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-[#f5c518]/15 text-[#f5c518] border border-[#f5c518]/30">
+                  {badge}
+                </span>
+              )}
+            </div>
+            {subtitle && (
+              <p className="text-xs text-[#9a9078] mt-0.5 font-medium">{subtitle}</p>
+            )}
+          </div>
+        </div>
+
+        {onExploreCategory && (
+          <button
+            onClick={onExploreCategory}
+            className="text-xs font-bold text-[#f5c518] hover:underline flex items-center gap-1 cursor-pointer bg-transparent border-none"
+          >
+            View All ({products.length}) →
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        {products.slice(0, 5).map((p) => (
+          <ProductCard key={p.id} product={p} onQuickView={onQuickView} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ── Smart Navbar with Integrated Interactive Search & Rich Dropdown ───────────
+
+function Navbar({
+  user,
+  setUser,
+  allProducts,
+  searchQuery,
+  setSearchQuery,
+  selectedCategory,
+  setSelectedCategory,
+  onExecuteSearch,
+  onSelectProduct,
+}) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [recentSearches, setRecentSearches] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("snitch_recent_searches") || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  const searchContainerRef = useRef(null);
   const dropdownRef = useRef(null);
 
   const cartItems = useSelector((state) => state.cart?.items || []);
@@ -726,10 +729,70 @@ function Navbar({ onOpenSearch, user, setUser }) {
 
   const isSeller = user && user.role === "seller";
 
+  // Real-time matching suggestions from allProducts
+  const liveMatches = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const words = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
+    const scored = allProducts
+      .map((p) => ({
+        product: p,
+        score: scoreProductMatch(p, words),
+      }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    return scored.slice(0, 5).map((item) => item.product);
+  }, [allProducts, searchQuery]);
+
+  // Save query to recent searches
+  const saveRecentSearch = (term) => {
+    if (!term || !term.trim()) return;
+    const clean = term.trim();
+    const updated = [clean, ...recentSearches.filter((s) => s.toLowerCase() !== clean.toLowerCase())].slice(0, 6);
+    setRecentSearches(updated);
+    try {
+      localStorage.setItem("snitch_recent_searches", JSON.stringify(updated));
+    } catch {
+      // storage unavailable
+    }
+  };
+
+  const removeRecentSearch = (e, termToRemove) => {
+    e.stopPropagation();
+    const updated = recentSearches.filter((s) => s !== termToRemove);
+    setRecentSearches(updated);
+    try {
+      localStorage.setItem("snitch_recent_searches", JSON.stringify(updated));
+    } catch {
+      // storage unavailable
+    }
+  };
+
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (searchQuery.trim()) {
+      saveRecentSearch(searchQuery.trim());
+    }
+    setSearchFocused(false);
+    onExecuteSearch(searchQuery.trim());
+  };
+
+  const handleSelectRecentOrTrending = (term) => {
+    setSearchQuery(term);
+    saveRecentSearch(term);
+    setSearchFocused(false);
+    onExecuteSearch(term);
+  };
+
+  // Close menus on outside click
   useEffect(() => {
     function handleClickOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false);
+      }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setSearchFocused(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -738,57 +801,220 @@ function Navbar({ onOpenSearch, user, setUser }) {
 
   return (
     <nav
-      className="fixed top-0 w-full z-50 flex items-center justify-between px-4 sm:px-8 h-[72px]"
+      className="fixed top-0 w-full z-50 flex items-center justify-between px-3 sm:px-8 h-[72px]"
       style={{ backgroundColor: "#111111", borderBottom: "1px solid #2a2a2a" }}
     >
       {/* Left: Brand */}
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-4 sm:gap-6 flex-shrink-0">
         <Link
           to="/"
           className="text-2xl font-black tracking-tighter flex items-center gap-1.5"
           style={{ color: "#f5c518", letterSpacing: "-0.04em", textDecoration: "none" }}
         >
           <span>SNITCH</span>
-          <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-[#f5c518]/10 text-[#f5c518] border border-[#f5c518]/30 hidden sm:inline-block">
+          <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-[#f5c518]/10 text-[#f5c518] border border-[#f5c518]/30 hidden md:inline-block">
             STREETWEAR
           </span>
         </Link>
       </div>
 
-      {/* Center: Search Trigger Input Bar */}
-      <div className="flex-1 max-w-lg mx-4 hidden md:block">
-        <div
-          onClick={onOpenSearch}
-          className="w-full flex items-center justify-between px-4 py-2 bg-[#1a1a1a] hover:bg-[#202020] border border-[#2a2a2a] hover:border-[#f5c518]/60 rounded-lg cursor-pointer transition-all text-xs"
+      {/* Center: Live Flipkart / Amazon Style Search Box & Auto-Suggest */}
+      <div ref={searchContainerRef} className="flex-1 max-w-2xl mx-3 sm:mx-6 relative">
+        <form
+          onSubmit={handleSearchSubmit}
+          className="w-full flex items-center bg-[#1a1a1a] rounded-lg border border-[#2a2a2a] focus-within:border-[#f5c518] focus-within:ring-1 focus-within:ring-[#f5c518]/50 transition-all overflow-hidden"
         >
-          <div className="flex items-center gap-3 text-[#777]">
-            <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          {/* Category Scope Selector */}
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="hidden lg:block bg-[#141414] text-[#9a9078] hover:text-white text-xs font-semibold px-3 py-2.5 border-r border-[#2a2a2a] outline-none cursor-pointer"
+          >
+            <option value="all">All Drops</option>
+            <option value="footwear">👟 Footwear</option>
+            <option value="clothing">👕 Clothing</option>
+            <option value="streetwear">🔥 Streetwear</option>
+            <option value="electronics">💻 Tech</option>
+            <option value="accessories">🎧 Accessories</option>
+          </select>
+
+          {/* Real-time Search Input */}
+          <div className="flex-1 flex items-center px-3 py-1.5">
+            <svg
+              className="text-[#888] flex-shrink-0 mr-2"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            <span className="text-[#888]">Search sneakers, oversized tees, hoodies, brands…</span>
+            <input
+              type="text"
+              placeholder="Search footwear, oversized tees, hoodies, cargos…"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSearchFocused(true);
+              }}
+              onFocus={() => setSearchFocused(true)}
+              className="w-full bg-transparent border-none outline-none text-xs sm:text-sm text-white placeholder-[#666]"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  onExecuteSearch("");
+                }}
+                className="text-xs text-[#777] hover:text-white px-1.5 py-0.5"
+              >
+                ✕
+              </button>
+            )}
           </div>
-          <kbd className="px-2 py-0.5 text-[10px] font-mono bg-[#111] border border-[#333] rounded text-[#666]">
-            ⌘K
-          </kbd>
-        </div>
+
+          {/* Search Button */}
+          <button
+            type="submit"
+            className="px-4 py-2.5 bg-[#f5c518] hover:bg-[#e0b415] text-[#111] font-black text-xs uppercase tracking-wider transition-colors flex items-center justify-center flex-shrink-0"
+          >
+            <span className="hidden sm:inline">Search</span>
+            <svg className="sm:hidden" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </button>
+        </form>
+
+        {/* ── Auto-Suggest Floating Dropdown (Amazon / Flipkart UI) ───────────── */}
+        {searchFocused && (
+          <div className="absolute top-full left-0 right-0 mt-2 bg-[#161616] border border-[#2a2a2a] rounded-xl shadow-2xl z-50 overflow-hidden text-xs divide-y divide-[#202020] animate-in fade-in slide-in-from-top-2">
+            
+            {/* Live Product Matches */}
+            {searchQuery.trim() && liveMatches.length > 0 && (
+              <div className="p-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#f5c518] mb-2">
+                  Matching Products ({liveMatches.length})
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {liveMatches.map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={() => {
+                        setSearchFocused(false);
+                        saveRecentSearch(searchQuery);
+                        onSelectProduct(p);
+                      }}
+                      className="flex items-center justify-between p-2 rounded-lg hover:bg-[#202020] cursor-pointer transition-colors group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={p.cover_image_url}
+                          alt={p.title}
+                          className="w-9 h-9 rounded object-cover border border-[#333]"
+                        />
+                        <div>
+                          <p className="font-semibold text-white group-hover:text-[#f5c518] line-clamp-1">
+                            {p.title}
+                          </p>
+                          <p className="text-[10px] text-[#888]">
+                            {p.seller?.store_name || "SNITCH Seller"} • {p.category}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <span className="font-bold text-[#f5c518]">
+                          ₹{Number(p.price).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSearchSubmit}
+                  className="w-full mt-2 py-2 text-center text-xs font-bold text-[#f5c518] hover:bg-[#222] rounded transition-colors"
+                >
+                  View all results for &ldquo;{searchQuery}&rdquo; →
+                </button>
+              </div>
+            )}
+
+            {/* If Query entered but no exact product match */}
+            {searchQuery.trim() && liveMatches.length === 0 && (
+              <div className="p-4 text-center text-[#888]">
+                <p>Press Enter to search entire catalog for &ldquo;<strong className="text-white">{searchQuery}</strong>&rdquo;</p>
+              </div>
+            )}
+
+            {/* Recent Searches */}
+            {recentSearches.length > 0 && (
+              <div className="p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#888]">
+                    Recent Searches
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecentSearches([]);
+                      localStorage.removeItem("snitch_recent_searches");
+                    }}
+                    className="text-[10px] text-[#666] hover:text-[#f5c518]"
+                  >
+                    Clear All
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {recentSearches.map((term) => (
+                    <div
+                      key={term}
+                      onClick={() => handleSelectRecentOrTrending(term)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#202020] hover:bg-[#282828] text-white cursor-pointer border border-[#333] transition-colors"
+                    >
+                      <span>🕒 {term}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => removeRecentSearch(e, term)}
+                        className="text-[#777] hover:text-white ml-1 font-bold"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Trending Hot Searches */}
+            <div className="p-3 bg-[#131313]">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#888] block mb-2">
+                🔥 Trending Searches
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {TRENDING_SEARCHES.map((term) => (
+                  <button
+                    key={term}
+                    type="button"
+                    onClick={() => handleSelectRecentOrTrending(term)}
+                    className="px-2.5 py-1 rounded-full bg-[#1b1b1b] hover:bg-[#f5c518] hover:text-[#111] text-[#ccc] border border-[#2f2f2f] transition-all cursor-pointer text-[11px] font-medium"
+                  >
+                    {term}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-2 sm:gap-3" style={{ color: "#f5c518" }}>
-        {/* Mobile Search Icon */}
-        <button
-          id="navbar-search"
-          title="Search"
-          className="p-2 rounded transition-colors md:hidden text-[#e0e0e0] hover:text-[#f5c518]"
-          style={{ background: "transparent", border: "none", cursor: "pointer" }}
-          onClick={onOpenSearch}
-        >
-          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-        </button>
-
+      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0" style={{ color: "#f5c518" }}>
         {/* Wishlist */}
         <button
           id="navbar-wishlist"
@@ -807,7 +1033,7 @@ function Navbar({ onOpenSearch, user, setUser }) {
           )}
         </button>
 
-        {/* Shopping Bag Drawer Trigger */}
+        {/* Shopping Bag */}
         <button
           id="navbar-bag"
           title="Shopping Bag"
@@ -829,7 +1055,7 @@ function Navbar({ onOpenSearch, user, setUser }) {
         {isSeller && (
           <Link
             to="/seller/dashboard"
-            className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded bg-[#f5c518]/10 text-[#f5c518] border border-[#f5c518]/30 hover:bg-[#f5c518] hover:text-[#111] transition-all ml-1"
+            className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded bg-[#f5c518]/10 text-[#f5c518] border border-[#f5c518]/30 hover:bg-[#f5c518] hover:text-[#111] transition-all ml-1 hidden sm:inline-block"
           >
             Seller Hub
           </Link>
@@ -1003,185 +1229,6 @@ function Navbar({ onOpenSearch, user, setUser }) {
   );
 }
 
-// ── ProductCard ────────────────────────────────────────────────────────────────
-
-function ProductCard({ product, onQuickView }) {
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
-  const wishlistItems = useSelector((state) => state.wishlist?.items || []);
-  const isWishlisted = wishlistItems.some((item) => item.productId === product.id);
-
-  const discountPercent =
-    product.compare_at_price && Number(product.compare_at_price) > Number(product.price)
-      ? Math.round(
-          ((Number(product.compare_at_price) - Number(product.price)) /
-            Number(product.compare_at_price)) *
-            100
-        )
-      : null;
-
-  return (
-    <div
-      onClick={() => navigate(`/product/${product.slug || product.id}`)}
-      className="group flex flex-col cursor-pointer transition-all duration-300 rounded-lg overflow-hidden relative"
-      style={{ border: "1px solid #2a2a2a", backgroundColor: "#161616" }}
-      onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#f5c518")}
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#2a2a2a")}
-    >
-      {/* Image Area */}
-      <div className="relative w-full aspect-square flex items-center justify-center overflow-hidden bg-[#121212]">
-        {product.cover_image_url ? (
-          <img
-            src={product.cover_image_url}
-            alt={product.title}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-        ) : (
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" opacity="0.18">
-            <rect x="8" y="14" width="48" height="36" rx="2" stroke="#f5c518" strokeWidth="2" />
-            <circle cx="32" cy="32" r="10" stroke="#f5c518" strokeWidth="2" />
-          </svg>
-        )}
-
-        {/* Tag badge */}
-        {product.tags?.[0] && (
-          <span
-            className="absolute top-2.5 left-2.5 text-[10px] font-extrabold px-2 py-0.5 tracking-widest uppercase z-10 rounded-sm"
-            style={{ backgroundColor: "#f5c518", color: "#111111" }}
-          >
-            {product.tags[0]}
-          </span>
-        )}
-
-        {/* Discount Badge */}
-        {discountPercent && (
-          <span
-            className="absolute text-[10px] font-bold px-1.5 py-0.5 tracking-wider uppercase bg-red-600 text-white z-10 rounded-sm"
-            style={{
-              top: product.tags?.[0] ? "32px" : "10px",
-              left: "10px",
-            }}
-          >
-            {discountPercent}% OFF
-          </span>
-        )}
-
-        {/* Wishlist Floating Button */}
-        <button
-          type="button"
-          aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
-          title={isWishlisted ? "In your Wishlist" : "Add to Wishlist"}
-          onClick={(e) => {
-            e.stopPropagation();
-            dispatch(toggleWishlist(product));
-          }}
-          className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full flex items-center justify-center transition-all bg-[#111111]/80 hover:bg-[#111111] border border-[#333] hover:border-[#f5c518] shadow-md backdrop-blur-sm"
-        >
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill={isWishlisted ? "#f5c518" : "none"}
-            stroke={isWishlisted ? "#f5c518" : "#ffffff"}
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-          </svg>
-        </button>
-
-        {/* Quick View Button on Hover */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (onQuickView) onQuickView(product);
-            }}
-            className="text-xs font-bold uppercase tracking-widest px-4 py-2 rounded shadow-lg bg-[#1a1a1a] hover:bg-[#f5c518] hover:text-[#111] text-white border border-[#444] transition-all transform translate-y-2 group-hover:translate-y-0"
-          >
-            Quick View
-          </button>
-        </div>
-      </div>
-
-      {/* Info Card */}
-      <div className="p-3.5 flex flex-col gap-1 flex-1 justify-between">
-        <div>
-          <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-widest text-[#9a9078] mb-1">
-            <span className="truncate">{product.seller?.store_name || "SNITCH DROP"}</span>
-            {product.gender && <span className="text-[#666]">{product.gender}</span>}
-          </div>
-          <h4 className="text-sm font-semibold text-[#e5e2e1] line-clamp-1 group-hover:text-[#f5c518] transition-colors">
-            {product.title}
-          </h4>
-        </div>
-
-        <div className="flex items-baseline gap-2 mt-2 pt-1 border-t border-[#222]">
-          <span className="text-base font-black text-[#f5c518]">
-            ₹{Number(product.price).toLocaleString("en-IN")}
-          </span>
-          {product.compare_at_price && Number(product.compare_at_price) > Number(product.price) && (
-            <span className="text-xs text-[#666] line-through">
-              ₹{Number(product.compare_at_price).toLocaleString("en-IN")}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Shelf Section (Amazon/Flipkart Style Categorized Feed) ─────────────────────
-
-function CategorizedShelf({ title, subtitle, badge, icon, products, onQuickView, onExploreCategory }) {
-  if (!products || products.length === 0) return null;
-
-  return (
-    <section className="w-full px-4 sm:px-8 py-8 border-b border-[#222222]">
-      {/* Header */}
-      <div className="flex items-end justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-1.5 h-8 bg-[#f5c518] rounded-full" />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg">{icon}</span>
-              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                {title}
-              </h2>
-              {badge && (
-                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-[#f5c518]/15 text-[#f5c518] border border-[#f5c518]/30">
-                  {badge}
-                </span>
-              )}
-            </div>
-            {subtitle && (
-              <p className="text-xs text-[#9a9078] mt-0.5 font-medium">{subtitle}</p>
-            )}
-          </div>
-        </div>
-
-        {onExploreCategory && (
-          <button
-            onClick={onExploreCategory}
-            className="text-xs font-bold text-[#f5c518] hover:underline flex items-center gap-1 cursor-pointer bg-transparent border-none"
-          >
-            View All ({products.length}) →
-          </button>
-        )}
-      </div>
-
-      {/* Grid of Shelf Products */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        {products.slice(0, 5).map((p) => (
-          <ProductCard key={p.id} product={p} onQuickView={onQuickView} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
 // ── Main Page Component ────────────────────────────────────────────────────────
 
 export default function HomePage() {
@@ -1196,8 +1243,9 @@ export default function HomePage() {
   const [selectedSubcategory, setSelectedSubcategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("featured");
+  const [priceFilter, setPriceFilter] = useState("all");
+  const [discountOnly, setDiscountOnly] = useState(false);
 
-  const [searchOpen, setSearchOpen] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
 
   // Check auth user status
@@ -1247,34 +1295,59 @@ export default function HomePage() {
     return allProducts.filter((p) => (p.gender || "").toLowerCase() === "women");
   }, [allProducts]);
 
-  // Filtered explorer products
+  // Filtered explorer products with Smart Scorer
   const explorerProducts = useMemo(() => {
     let list = [...allProducts];
 
+    // 1. Department Filter
     if (selectedDepartment !== "all") {
       list = list.filter((p) => (p.gender || "").toLowerCase() === selectedDepartment.toLowerCase());
     }
 
+    // 2. Category Filter
     if (selectedCategory !== "all") {
       list = list.filter((p) => (p.category || "").toLowerCase() === selectedCategory.toLowerCase());
     }
 
+    // 3. Subcategory Filter
     if (selectedSubcategory !== "all") {
       list = list.filter((p) => (p.subcategory || "").toLowerCase() === selectedSubcategory.toLowerCase());
     }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      list = list.filter(
-        (p) =>
-          p.title?.toLowerCase().includes(q) ||
-          p.description?.toLowerCase().includes(q) ||
-          p.category?.toLowerCase().includes(q) ||
-          p.subcategory?.toLowerCase().includes(q) ||
-          p.seller?.store_name?.toLowerCase().includes(q)
-      );
+    // 4. Price Bracket Filter
+    if (priceFilter === "under-1500") {
+      list = list.filter((p) => Number(p.price) < 1500);
+    } else if (priceFilter === "1500-3000") {
+      list = list.filter((p) => Number(p.price) >= 1500 && Number(p.price) <= 3000);
+    } else if (priceFilter === "3000-6000") {
+      list = list.filter((p) => Number(p.price) >= 3000 && Number(p.price) <= 6000);
+    } else if (priceFilter === "above-6000") {
+      list = list.filter((p) => Number(p.price) > 6000);
     }
 
+    // 5. Discount Only Filter
+    if (discountOnly) {
+      list = list.filter((p) => p.compare_at_price && Number(p.compare_at_price) > Number(p.price));
+    }
+
+    // 6. Smart Multi-Word & Synonym Search
+    if (searchQuery.trim()) {
+      const words = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const scoredItems = list
+        .map((p) => ({
+          product: p,
+          score: scoreProductMatch(p, words),
+        }))
+        .filter((item) => item.score > 0);
+
+      // If user sorted by "featured", sort by search relevance score
+      if (sortBy === "featured") {
+        scoredItems.sort((a, b) => b.score - a.score);
+      }
+      list = scoredItems.map((item) => item.product);
+    }
+
+    // 7. Sort options
     if (sortBy === "price-low") {
       list.sort((a, b) => Number(a.price) - Number(b.price));
     } else if (sortBy === "price-high") {
@@ -1284,18 +1357,26 @@ export default function HomePage() {
     }
 
     return list;
-  }, [allProducts, selectedDepartment, selectedCategory, selectedSubcategory, searchQuery, sortBy]);
+  }, [allProducts, selectedDepartment, selectedCategory, selectedSubcategory, priceFilter, discountOnly, searchQuery, sortBy]);
 
-  // Handlers for quick story filters
-  const handleStoryClick = (story) => {
-    if (story.targetCategory) setSelectedCategory(story.targetCategory);
-    if (story.targetSubcategory) setSelectedSubcategory(story.targetSubcategory);
-    if (story.targetDepartment) setSelectedDepartment(story.targetDepartment);
-
+  // Scroll smoothly to catalog explorer
+  const scrollToCatalog = () => {
     const el = document.getElementById("catalog-explorer");
     if (el) {
       el.scrollIntoView({ behavior: "smooth" });
     }
+  };
+
+  const handleStoryClick = (story) => {
+    if (story.targetCategory) setSelectedCategory(story.targetCategory);
+    if (story.targetSubcategory) setSelectedSubcategory(story.targetSubcategory);
+    if (story.targetDepartment) setSelectedDepartment(story.targetDepartment);
+    scrollToCatalog();
+  };
+
+  const handleExecuteSearch = (term) => {
+    setSearchQuery(term);
+    scrollToCatalog();
   };
 
   const handleCategorySelect = (catId) => {
@@ -1303,27 +1384,36 @@ export default function HomePage() {
     setSelectedSubcategory("all");
   };
 
+  const resetAllFilters = () => {
+    setSelectedDepartment("all");
+    setSelectedCategory("all");
+    setSelectedSubcategory("all");
+    setSearchQuery("");
+    setPriceFilter("all");
+    setDiscountOnly(false);
+    setSortBy("featured");
+  };
+
   const activeCategoryObj = selectedCategory !== "all" ? CATEGORY_TREE[selectedCategory] : null;
 
   return (
     <div style={{ backgroundColor: "#111111", color: "#e5e2e1", fontFamily: "'Geist', sans-serif", minHeight: "100vh" }}>
+      {/* Smart Navbar with integrated live autocomplete search */}
       <Navbar
-        onOpenSearch={() => setSearchOpen(true)}
         user={user}
         setUser={setUser}
+        allProducts={allProducts}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+        onExecuteSearch={handleExecuteSearch}
+        onSelectProduct={(p) => setQuickViewProduct(p)}
       />
 
       {/* Drawers & Modals */}
       <CartDrawer />
       <WishlistDrawer onQuickView={(p) => setQuickViewProduct(p)} />
-
-      {searchOpen && (
-        <SearchOverlay
-          onClose={() => setSearchOpen(false)}
-          products={allProducts}
-          onSelectProduct={(p) => setQuickViewProduct(p)}
-        />
-      )}
 
       {quickViewProduct && (
         <QuickViewModal
@@ -1383,7 +1473,7 @@ export default function HomePage() {
                 </h1>
               </div>
 
-              {/* Quick Action Pills for Logged-In Buyers */}
+              {/* Quick Action Pills */}
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => navigate("/buyer/dashboard")}
@@ -1397,12 +1487,12 @@ export default function HomePage() {
                 >
                   <span>❤️</span> Saved Drops
                 </button>
-                <a
-                  href="#catalog-explorer"
-                  className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded bg-[#f5c518] hover:bg-[#e0b415] text-[#111] transition-all flex items-center gap-1.5 no-underline"
+                <button
+                  onClick={scrollToCatalog}
+                  className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded bg-[#f5c518] hover:bg-[#e0b415] text-[#111] transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <span>⚡</span> Browse All Drops
-                </a>
+                </button>
               </div>
             </div>
           </section>
@@ -1422,12 +1512,12 @@ export default function HomePage() {
               </div>
 
               <div className="flex items-center gap-3">
-                <a
-                  href="#catalog-explorer"
-                  className="px-6 py-3 text-xs font-bold uppercase tracking-widest bg-[#f5c518] text-[#111] rounded hover:opacity-90 transition-opacity no-underline"
+                <button
+                  onClick={scrollToCatalog}
+                  className="px-6 py-3 text-xs font-bold uppercase tracking-widest bg-[#f5c518] text-[#111] rounded hover:opacity-90 transition-opacity cursor-pointer border-none"
                 >
                   Explore Drops →
-                </a>
+                </button>
                 <Link
                   to="/register"
                   className="px-6 py-3 text-xs font-bold uppercase tracking-widest bg-transparent border border-[#444] text-white hover:border-[#f5c518] hover:text-[#f5c518] rounded transition-all no-underline"
@@ -1440,7 +1530,7 @@ export default function HomePage() {
         )}
 
         {/* ── CATEGORIZED SHELF 1: TRENDING FOOTWEAR ───────────────────────── */}
-        {footwearProducts.length > 0 && (
+        {!searchQuery.trim() && footwearProducts.length > 0 && (
           <CategorizedShelf
             title="Trending Footwear & Sneakers"
             subtitle="Low-tops, high-tops, retro runners, slides & loafers"
@@ -1450,13 +1540,13 @@ export default function HomePage() {
             onQuickView={(p) => setQuickViewProduct(p)}
             onExploreCategory={() => {
               setSelectedCategory("footwear");
-              document.getElementById("catalog-explorer")?.scrollIntoView({ behavior: "smooth" });
+              scrollToCatalog();
             }}
           />
         )}
 
         {/* ── CATEGORIZED SHELF 2: STREETWEAR & APPAREL ─────────────────────── */}
-        {apparelProducts.length > 0 && (
+        {!searchQuery.trim() && apparelProducts.length > 0 && (
           <CategorizedShelf
             title="Fresh Streetwear & Apparel Drops"
             subtitle="Oversized heavy-cotton tees, graphic hoodies, cargos & denim"
@@ -1466,13 +1556,13 @@ export default function HomePage() {
             onQuickView={(p) => setQuickViewProduct(p)}
             onExploreCategory={() => {
               setSelectedCategory("clothing");
-              document.getElementById("catalog-explorer")?.scrollIntoView({ behavior: "smooth" });
+              scrollToCatalog();
             }}
           />
         )}
 
         {/* ── CATEGORIZED SHELF 3: MEN & WOMEN CURATIONS ───────────────────── */}
-        {menProducts.length > 0 && (
+        {!searchQuery.trim() && menProducts.length > 0 && (
           <CategorizedShelf
             title="Men's Curated Edit"
             subtitle="Streetwear essentials, casual oversized fits & sneakers for Men"
@@ -1482,12 +1572,12 @@ export default function HomePage() {
             onQuickView={(p) => setQuickViewProduct(p)}
             onExploreCategory={() => {
               setSelectedDepartment("Men");
-              document.getElementById("catalog-explorer")?.scrollIntoView({ behavior: "smooth" });
+              scrollToCatalog();
             }}
           />
         )}
 
-        {womenProducts.length > 0 && (
+        {!searchQuery.trim() && womenProducts.length > 0 && (
           <CategorizedShelf
             title="Women's Streetwear Edit"
             subtitle="Elevated aesthetics, cropped hoodies, statement denim & kicks"
@@ -1497,21 +1587,38 @@ export default function HomePage() {
             onQuickView={(p) => setQuickViewProduct(p)}
             onExploreCategory={() => {
               setSelectedDepartment("Women");
-              document.getElementById("catalog-explorer")?.scrollIntoView({ behavior: "smooth" });
+              scrollToCatalog();
             }}
           />
         )}
 
-        {/* ── INTERACTIVE FULL CATALOG EXPLORER (FLIPKART / AMAZON FILTERING) ─ */}
+        {/* ── INTERACTIVE FULL CATALOG EXPLORER & ADVANCED SEARCH ───────────── */}
         <section id="catalog-explorer" className="w-full px-4 sm:px-8 py-12 border-b border-[#2a2a2a]">
           <div className="flex flex-col gap-6 mb-8">
+            
+            {/* Search Active Indicator / Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest mb-1 text-[#f5c518]">
-                  Browse & Filter Storefront
-                </p>
-                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                  All Marketplace Products
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-bold uppercase tracking-widest text-[#f5c518]">
+                    {searchQuery.trim() ? "Search Results" : "Live Storefront"}
+                  </span>
+                  {searchQuery.trim() && (
+                    <span className="text-xs text-[#888]">
+                      for &ldquo;<strong className="text-white">{searchQuery}</strong>&rdquo;
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
+                  <span>{searchQuery.trim() ? `Found ${explorerProducts.length} Products` : "All Marketplace Products"}</span>
+                  {searchQuery.trim() && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="text-xs text-[#f5c518] hover:underline font-semibold"
+                    >
+                      Clear Search ✕
+                    </button>
+                  )}
                 </h2>
               </div>
 
@@ -1544,7 +1651,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Main Category Filter Pills */}
+            {/* Category Filter Pills */}
             <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
               <button
                 onClick={() => handleCategorySelect("all")}
@@ -1604,57 +1711,55 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* Live Search & Sort Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-              <div className="relative w-full sm:w-80">
-                <input
-                  type="text"
-                  placeholder="Filter by title, brand, tag…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-[#181818] border border-[#2a2a2a] focus:border-[#f5c518] text-xs text-white px-3.5 py-2.5 pl-9 rounded-md outline-none"
-                />
-                <svg
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[#777] pointer-events-none"
-                  width="15"
-                  height="15"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                {searchQuery && (
+            {/* Price Brackets, Discount Toggle & Sort Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 bg-[#161616] p-3 rounded-lg border border-[#222]">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-[#888] font-semibold">Price:</span>
+                {[
+                  { id: "all", label: "All" },
+                  { id: "under-1500", label: "Under ₹1,500" },
+                  { id: "1500-3000", label: "₹1,500 - ₹3,000" },
+                  { id: "3000-6000", label: "₹3,000 - ₹6,000" },
+                  { id: "above-6000", label: "₹6,000+" },
+                ].map((p) => (
                   <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#777] hover:text-white"
+                    key={p.id}
+                    onClick={() => setPriceFilter(p.id)}
+                    className={`px-2.5 py-1 text-xs rounded transition-all ${
+                      priceFilter === p.id
+                        ? "bg-[#f5c518] text-[#111] font-bold"
+                        : "bg-[#202020] text-[#888] hover:text-white"
+                    }`}
                   >
-                    ✕
+                    {p.label}
                   </button>
-                )}
+                ))}
+
+                <button
+                  onClick={() => setDiscountOnly(!discountOnly)}
+                  className={`px-2.5 py-1 text-xs rounded transition-all flex items-center gap-1 ${
+                    discountOnly
+                      ? "bg-red-600 text-white font-bold"
+                      : "bg-[#202020] text-[#888] hover:text-white"
+                  }`}
+                >
+                  <span>🏷️</span> On Sale
+                </button>
               </div>
 
-              <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                <span className="text-xs text-[#888]">
-                  Showing <strong className="text-white">{explorerProducts.length}</strong> items
-                </span>
-
-                <div className="flex items-center gap-2">
-                  <label htmlFor="catalog-sort" className="text-xs text-[#888]">Sort:</label>
-                  <select
-                    id="catalog-sort"
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="bg-[#181818] border border-[#2a2a2a] text-xs text-[#e5e2e1] px-3 py-2 rounded-md outline-none cursor-pointer focus:border-[#f5c518]"
-                  >
-                    <option value="featured">Featured Drops</option>
-                    <option value="price-low">Price: Low to High</option>
-                    <option value="price-high">Price: High to Low</option>
-                    <option value="newest">Newest Arrivals</option>
-                  </select>
-                </div>
+              <div className="flex items-center gap-3">
+                <label htmlFor="catalog-sort" className="text-xs text-[#888] font-semibold">Sort:</label>
+                <select
+                  id="catalog-sort"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="bg-[#1e1e1e] border border-[#333] text-xs text-[#e5e2e1] px-3 py-1.5 rounded-md outline-none cursor-pointer focus:border-[#f5c518]"
+                >
+                  <option value="featured">Best Match</option>
+                  <option value="price-low">Price: Low to High</option>
+                  <option value="price-high">Price: High to Low</option>
+                  <option value="newest">Newest Arrivals</option>
+                </select>
               </div>
             </div>
           </div>
@@ -1667,21 +1772,22 @@ export default function HomePage() {
               ))}
             </div>
           ) : explorerProducts.length === 0 ? (
-            <div className="py-16 text-center bg-[#141414] rounded-lg border border-[#2a2a2a]">
-              <span className="text-4xl mb-3 block">🔍</span>
-              <p className="text-base font-bold text-white mb-1">No products found matching filters</p>
-              <p className="text-xs text-[#888] mb-4">Try clearing category or search filters</p>
-              <button
-                onClick={() => {
-                  setSelectedDepartment("all");
-                  setSelectedCategory("all");
-                  setSelectedSubcategory("all");
-                  setSearchQuery("");
-                }}
-                className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded bg-[#f5c518] text-[#111]"
-              >
-                Reset All Filters
-              </button>
+            <div className="py-16 text-center bg-[#141414] rounded-xl border border-[#2a2a2a] max-w-2xl mx-auto p-8">
+              <span className="text-5xl mb-4 block">🔍</span>
+              <h3 className="text-lg font-bold text-white mb-2">
+                No matching products found for &ldquo;<span className="text-[#f5c518]">{searchQuery || "selected filters"}</span>&rdquo;
+              </h3>
+              <p className="text-xs text-[#9a9078] mb-6 max-w-md mx-auto">
+                Try searching for broader terms like <strong>sneakers</strong>, <strong>oversized tee</strong>, <strong>hoodie</strong>, or <strong>cargos</strong>.
+              </p>
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={resetAllFilters}
+                  className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider rounded bg-[#f5c518] text-[#111] hover:bg-[#e0b415] transition-colors"
+                >
+                  Reset All Filters
+                </button>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -1711,7 +1817,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── SELLER BANNER (FOR GUESTS / PROSPECTIVE SELLERS) ─────────────── */}
+        {/* ── SELLER BANNER ────────────────────────────────────────────────── */}
         {(!user || user.role !== "seller") && (
           <section className="w-full px-4 sm:px-8 py-12 border-b border-[#2a2a2a]">
             <div className="max-w-7xl mx-auto rounded-xl bg-gradient-to-r from-[#f5c518] via-[#e5b710] to-[#f5c518] p-8 sm:p-12 flex flex-col md:flex-row items-center justify-between gap-6 text-[#111]">
