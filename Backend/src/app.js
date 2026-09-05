@@ -17,6 +17,9 @@ import paymentRoutes from "./routes/payment.routes.js";
 
 const app = express();
 
+// Trust proxy for Render / reverse proxies (enables secure cookies over HTTPS)
+app.set("trust proxy", 1);
+
 // ── Rate Limiters ──────────────────────────────────────────────────────────────
 
 const analyticsLimiter = rateLimit({
@@ -36,9 +39,29 @@ const checkoutLimiter = rateLimit({
 });
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:3000",
+  "http://127.0.0.1:5173",
+  process.env.CLIENT_ORIGIN,
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.endsWith(".vercel.app") ||
+        origin.endsWith(".onrender.com") ||
+        origin.endsWith(".netlify.app")
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true); // Permissive for development & staging
+    },
     credentials: true,          // allow cookies to be sent cross-origin
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],

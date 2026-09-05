@@ -28,10 +28,12 @@ function setCookieAndRespond(res, user) {
   const token = signToken(user);
   const redirect = REDIRECT[user.role] ?? "/homepage";
 
+  const isProd = process.env.NODE_ENV === "production" || Boolean(process.env.RENDER);
+
   res.cookie("token", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
@@ -153,10 +155,11 @@ export function googleCallback(req, res) {
   if (result.type === "login") {
     const token = signToken(result.user);
     const redirect = REDIRECT[result.user.role] ?? "/homepage";
+    const isProd = process.env.NODE_ENV === "production" || Boolean(process.env.RENDER);
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
     return res.redirect(`${CLIENT}${redirect}`);
