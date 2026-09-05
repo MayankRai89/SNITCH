@@ -145,26 +145,43 @@ const ProductModel = {
   /**
    * Query public catalog with filters and pagination
    */
-  async listPublic({ category, tag, sort = "newest", search, page = 1, limit = 20 }) {
+  async listPublic({ category, subcategory, gender, tag, minPrice, maxPrice, sort = "newest", search, page = 1, limit = 40 }) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
     let query = supabase
       .from("products")
-      .select("id, title, slug, category, price, compare_at_price, cover_image_url, tags, stock, sizes, colors, color_prices, variants, created_at, seller:sellers(store_name, store_slug)", { count: "exact" })
+      .select("id, title, description, slug, category, price, compare_at_price, cover_image_url, tags, stock, sizes, colors, color_prices, variants, created_at, seller:sellers(store_name, store_slug)", { count: "exact" })
       .eq("is_active", true)
       .is("deleted_at", null);
 
-    if (category) {
+    if (category && category !== "all") {
       query = query.eq("category", category.toLowerCase());
+    }
+
+    if (gender && gender !== "all") {
+      query = query.or(`tags.cs.{"gender:${gender}"},tags.cs.{"${gender}"},tags.cs.{"gender:Unisex"},tags.cs.{"Unisex"}`);
+    }
+
+    if (subcategory && subcategory !== "all") {
+      query = query.or(`tags.cs.{"sub:${subcategory}"},tags.cs.{"${subcategory}"}`);
     }
 
     if (tag) {
       query = query.contains("tags", [tag]);
     }
 
-    if (search) {
-      query = query.ilike("title", `%${search}%`);
+    if (minPrice) {
+      query = query.gte("price", parseFloat(minPrice));
+    }
+
+    if (maxPrice) {
+      query = query.lte("price", parseFloat(maxPrice));
+    }
+
+    if (search && search.trim()) {
+      const term = search.trim();
+      query = query.or(`title.ilike.%${term}%,description.ilike.%${term}%,category.ilike.%${term}%`);
     }
 
     if (sort === "price_asc") {

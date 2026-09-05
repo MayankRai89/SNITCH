@@ -8,8 +8,8 @@ import supabase from "../config/supabaseClient.js";
  * @param {string} folder - Folder path inside bucket (e.g. "seller_uuid")
  * @returns {Promise<string>} Public CDN URL
  */
-export async function uploadImageToStorage(buffer, originalName, mimeType, folder = "general") {
-  const fileExt = originalName.split(".").pop()?.toLowerCase() || "jpg";
+export async function uploadImageToStorage(buffer, originalName = "image.jpg", mimeType = "image/jpeg", folder = "general") {
+  const fileExt = (originalName || "image.jpg").split(".").pop()?.toLowerCase() || "jpg";
   const uniqueName = `${folder}/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
 
   const { data, error } = await supabase.storage

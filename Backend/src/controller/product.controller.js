@@ -307,11 +307,15 @@ export async function deleteProduct(req, res) {
  */
 export async function getPublicCatalog(req, res) {
   try {
-    const { category, tag, sort, search, page = 1, limit = 20 } = req.query;
+    const { category, subcategory, gender, tag, minPrice, maxPrice, sort, search, page = 1, limit = 40 } = req.query;
 
     const catalog = await ProductModel.listPublic({
       category,
+      subcategory,
+      gender,
       tag,
+      minPrice,
+      maxPrice,
       sort,
       search,
       page: parseInt(page, 10),

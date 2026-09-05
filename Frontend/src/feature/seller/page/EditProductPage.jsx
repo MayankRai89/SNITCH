@@ -3,70 +3,11 @@ import { Link, useNavigate, useParams } from "react-router";
 import { getSellerProductById, updateProduct } from "../../product/services/product.api";
 import { generateVariantCombinations } from "../../product/utils/variantResolver";
 
-// ── Category & Variant Configuration ──────────────────────────────────────────
-
-const CATEGORY_CONFIG = {
-  clothing: {
-    label: "Clothing & Apparel",
-    variantLabel: "Available Sizes",
-    options: ["XS", "S", "M", "L", "XL", "XXL", "3XL", "Free Size"],
-    hint: "Apparel sizing chart for tees, hoodies, and jackets",
-  },
-  streetwear: {
-    label: "Streetwear Drops",
-    variantLabel: "Streetwear Sizes",
-    options: ["XS", "S", "M", "L", "XL", "XXL"],
-    hint: "Oversized & relaxed drop sizing",
-  },
-  electronics: {
-    label: "Electronics & Gadgets",
-    variantLabel: "Storage / RAM / Configuration",
-    options: ["64GB", "128GB", "256GB", "512GB", "1TB", "8GB RAM", "16GB RAM", "32GB RAM"],
-    hint: "Select storage, memory, or model configurations",
-  },
-  footwear: {
-    label: "Footwear & Sneakers",
-    variantLabel: "Shoe Sizes (UK / India)",
-    options: ["UK 6", "UK 7", "UK 8", "UK 9", "UK 10", "UK 11", "UK 12"],
-    hint: "Standard Indian/UK shoe sizes",
-  },
-  accessories: {
-    label: "Accessories & Audio",
-    variantLabel: "Variant / Edition",
-    options: ["Standard", "Pro / ANC", "Wireless", "Wired", "One Size", "Adjustable"],
-    hint: "Editions and hardware variants",
-  },
-  men: {
-    label: "Men's Collection",
-    variantLabel: "Men's Sizes",
-    options: ["S", "M", "L", "XL", "XXL", "3XL"],
-    hint: "Standard men's garment sizes",
-  },
-  women: {
-    label: "Women's Collection",
-    variantLabel: "Women's Sizes",
-    options: ["XS", "S", "M", "L", "XL", "XXL"],
-    hint: "Standard women's garment sizes",
-  },
-};
-
-const CATEGORY_OPTIONS = Object.entries(CATEGORY_CONFIG).map(([value, conf]) => ({
-  value,
-  label: conf.label,
-}));
-
-const COLOR_OPTIONS = [
-  { label: "Obsidian Black", hex: "#111111" },
-  { label: "Acid Wash Grey", hex: "#4a4a4a" },
-  { label: "Bone White", hex: "#f0ede8" },
-  { label: "Space Grey", hex: "#4b4d52" },
-  { label: "Titanium Silver", hex: "#8c8e94" },
-  { label: "Snitch Gold", hex: "#f5c518" },
-  { label: "Olive Drab", hex: "#3d4535" },
-  { label: "Blood Red", hex: "#8a1a1a" },
-  { label: "Desert Camo", hex: "#9a8a6a" },
-  { label: "Cobalt Blue", hex: "#1a2f6a" },
-];
+import {
+  DEPARTMENTS,
+  CATEGORY_TREE,
+  COLOR_OPTIONS,
+} from "../../product/utils/categoryHierarchy";
 
 const TAG_OPTIONS = ["NEW DROP", "BESTSELLER", "LIMITED", "EXCLUSIVE", "TRENDING", "SALE", "HOT DEAL"];
 
@@ -291,10 +232,17 @@ export default function EditProductPage() {
             ? p.variants
             : generateVariantCombinations(loadedSizes, loadedColors);
 
+          // Infer gender from tags or property
+          const inferredGender = p.gender || p.tags?.find((t) => ["Men", "Women", "Unisex"].includes(t)) || "Men";
+          // Infer subcategory from tags or property
+          const inferredSub = p.subcategory || (p.tags?.find((t) => t.startsWith("sub:"))?.replace("sub:", "")) || "";
+
           setForm({
             title: p.title || "",
             description: p.description || "",
-            category: p.category || "",
+            gender: inferredGender,
+            category: p.category || "clothing",
+            subcategory: inferredSub,
             sku: p.sku || "",
             price: p.price !== undefined ? String(p.price) : "",
             compareAtPrice: p.compare_at_price ? String(p.compare_at_price) : "",
@@ -324,6 +272,25 @@ export default function EditProductPage() {
 
   const setField = (key) => (e) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const handleCategoryChange = (newCat) => {
+    const defaultSub = CATEGORY_TREE[newCat]?.subcategories?.[0]?.id || "";
+    setForm((prev) => ({
+      ...prev,
+      category: newCat,
+      subcategory: defaultSub,
+      sizes: [],
+      variants: generateVariantCombinations([], prev.colors, prev.variants),
+    }));
+  };
+
+  const handleGenderChange = (newGender) => {
+    setForm((prev) => ({ ...prev, gender: newGender }));
+  };
+
+  const handleSubcategoryChange = (newSub) => {
+    setForm((prev) => ({ ...prev, subcategory: newSub }));
+  };
 
   const toggleArrayItem = (key, value) => {
     setForm((prev) => {
@@ -427,6 +394,8 @@ export default function EditProductPage() {
       fd.append("title", form.title.trim());
       fd.append("description", form.description.trim());
       fd.append("category", form.category.toLowerCase());
+      fd.append("gender", form.gender || "Unisex");
+      fd.append("subcategory", form.subcategory || "");
       fd.append("sku", form.sku.trim());
       fd.append("price", form.price);
       if (form.compareAtPrice) fd.append("compare_at_price", form.compareAtPrice);
@@ -434,9 +403,13 @@ export default function EditProductPage() {
       fd.append("stock", form.stock || "0");
       fd.append("is_active", String(form.isActive));
 
+      const combinedTags = [...(form.tags || [])];
+      if (form.gender && !combinedTags.includes(form.gender)) combinedTags.push(form.gender);
+      if (form.subcategory && !combinedTags.includes(form.subcategory)) combinedTags.push(form.subcategory);
+
       fd.append("sizes", JSON.stringify(form.sizes));
       fd.append("colors", JSON.stringify(form.colors));
-      fd.append("tags", JSON.stringify(form.tags));
+      fd.append("tags", JSON.stringify(combinedTags));
 
       // Clean colorPrices to only include non-empty entries
       const cleanColorPrices = {};
@@ -561,9 +534,87 @@ export default function EditProductPage() {
 
             {/* Card 1: Core Details */}
             <FormCard>
-              <SectionHeader title="Product Details" sub="Basic information about your piece" />
+              <SectionHeader title="Product Classification & Details" sub="Department, Category, and Specs" />
 
-              <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-6">
+                {/* 1. Target Department */}
+                <div>
+                  <FieldLabel required>1. Target Department / Audience</FieldLabel>
+                  <div className="grid grid-cols-3 gap-3">
+                    {DEPARTMENTS.map((dept) => {
+                      const isSel = form.gender === dept.id;
+                      return (
+                        <button
+                          key={dept.id}
+                          type="button"
+                          onClick={() => handleGenderChange(dept.id)}
+                          className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-xs font-bold uppercase tracking-wider transition-all"
+                          style={{
+                            backgroundColor: isSel ? "rgba(245,197,24,0.15)" : "#161616",
+                            border: isSel ? "1.5px solid #f5c518" : "1px solid #2a2a2a",
+                            color: isSel ? "#f5c518" : "#9a9078",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <span className="text-base">{dept.icon}</span>
+                          <span>{dept.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Main Category Selector */}
+                <div>
+                  <FieldLabel required>2. Main Category</FieldLabel>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                    {Object.entries(CATEGORY_TREE).map(([catKey, catObj]) => {
+                      const isSel = form.category === catKey;
+                      return (
+                        <button
+                          key={catKey}
+                          type="button"
+                          onClick={() => handleCategoryChange(catKey)}
+                          className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg text-center transition-all"
+                          style={{
+                            backgroundColor: isSel ? "rgba(245,197,24,0.12)" : "#161616",
+                            border: isSel ? "1.5px solid #f5c518" : "1px solid #2a2a2a",
+                            color: isSel ? "#ffffff" : "#888888",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <span className="text-xl">{catObj.icon}</span>
+                          <span className="text-xs font-bold uppercase tracking-wider line-clamp-1">{catObj.label.split("&")[0]}</span>
+                          <span className="text-[10px] text-[#f5c518]/70 font-mono tracking-widest">{catObj.tag}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. Subcategory Selector */}
+                {CATEGORY_TREE[form.category]?.subcategories && (
+                  <div>
+                    <FieldLabel htmlFor="product-subcategory" required>
+                      3. Subcategory (e.g. Sneakers, Loafers, Cargo Denim)
+                    </FieldLabel>
+                    <select
+                      id="product-subcategory"
+                      value={form.subcategory}
+                      onChange={(e) => handleSubcategoryChange(e.target.value)}
+                      className="snitch-input"
+                      style={{ appearance: "none", cursor: "pointer" }}
+                    >
+                      <option value="">Select specific subcategory…</option>
+                      {CATEGORY_TREE[form.category].subcategories.map((sub) => (
+                        <option key={sub.id} value={sub.id} style={{ backgroundColor: "#1a1a1a" }}>
+                          {sub.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {/* Title */}
                 <div>
                   <FieldLabel htmlFor="product-title" required>Title</FieldLabel>
@@ -591,35 +642,17 @@ export default function EditProductPage() {
                   />
                 </div>
 
-                {/* Category & SKU */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <FieldLabel htmlFor="product-category" required>Category</FieldLabel>
-                    <select
-                      id="product-category"
-                      value={form.category}
-                      onChange={setField("category")}
-                      className="snitch-input"
-                      required
-                    >
-                      <option value="" disabled>Select category…</option>
-                      {CATEGORY_OPTIONS.map((c) => (
-                        <option key={c.value} value={c.value}>{c.label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <FieldLabel htmlFor="product-sku">SKU (optional)</FieldLabel>
-                    <input
-                      id="product-sku"
-                      type="text"
-                      placeholder="e.g. HOOD-BLK-001"
-                      value={form.sku}
-                      onChange={setField("sku")}
-                      className="snitch-input"
-                    />
-                  </div>
+                {/* SKU */}
+                <div>
+                  <FieldLabel htmlFor="product-sku">SKU / Model Identifier</FieldLabel>
+                  <input
+                    id="product-sku"
+                    type="text"
+                    placeholder="e.g. HOOD-BLK-001"
+                    value={form.sku}
+                    onChange={setField("sku")}
+                    className="snitch-input"
+                  />
                 </div>
 
                 {/* Status Toggle */}
@@ -718,8 +751,8 @@ export default function EditProductPage() {
               <SectionHeader
                 title="Variants & Attributes"
                 sub={
-                  CATEGORY_CONFIG[form.category?.toLowerCase()]
-                    ? `${CATEGORY_CONFIG[form.category.toLowerCase()].variantLabel} (${CATEGORY_CONFIG[form.category.toLowerCase()].label})`
+                  CATEGORY_TREE[form.category?.toLowerCase()]
+                    ? `${CATEGORY_TREE[form.category.toLowerCase()].sizeLabel} (${CATEGORY_TREE[form.category.toLowerCase()].label})`
                     : "Select available sizes, storage, or configurations"
                 }
               />
@@ -728,14 +761,14 @@ export default function EditProductPage() {
                 {/* Dynamic Variants (Sizes / Storage / Specs) */}
                 <div>
                   <FieldLabel>
-                    {CATEGORY_CONFIG[form.category?.toLowerCase()]
-                      ? CATEGORY_CONFIG[form.category.toLowerCase()].variantLabel
+                    {CATEGORY_TREE[form.category?.toLowerCase()]
+                      ? CATEGORY_TREE[form.category.toLowerCase()].sizeLabel
                       : "Available Sizes / Variants"}
                   </FieldLabel>
                   <div className="flex flex-wrap gap-2 mt-1">
                     {(
-                      CATEGORY_CONFIG[form.category?.toLowerCase()]?.options || [
-                        "XS", "S", "M", "L", "XL", "XXL", "128GB", "256GB", "Standard"
+                      CATEGORY_TREE[form.category?.toLowerCase()]?.sizeOptions || [
+                        "XS", "S", "M", "L", "XL", "XXL"
                       ]
                     ).map((s) => (
                       <PillChip

@@ -7,6 +7,12 @@ import { toggleWishlist, openWishlist } from "../../wishlist/state/wishlist.slic
 import CartDrawer from "../../cart/components/CartDrawer";
 import WishlistDrawer from "../../wishlist/components/WishlistDrawer";
 import { resolveVariant } from "../utils/variantResolver";
+import {
+  DEPARTMENTS,
+  CATEGORY_TREE,
+  formatCategoryName,
+  formatSubcategoryName,
+} from "../utils/categoryHierarchy";
 
 // ── Size Chart Modal ──────────────────────────────────────────────────────────
 
@@ -300,8 +306,12 @@ export default function ProductDetailsPage() {
     : null;
   const savingsAmount = hasDiscount ? originalPrice - currentPrice : 0;
 
-  // Category helpers
+  // Category and hierarchy helpers
   const categoryLower = (product.category || "").toLowerCase();
+  const catInfo = CATEGORY_TREE[categoryLower];
+  const productGender = product.gender || product.tags?.find((t) => ["Men", "Women", "Unisex"].includes(t)) || "Unisex";
+  const productSubcategory = product.subcategory || (product.tags?.find((t) => t.startsWith("sub:"))?.replace("sub:", "")) || "";
+  
   const isElectronics = categoryLower === "electronics";
   const isFootwear = categoryLower === "footwear" || categoryLower.includes("shoe");
   const isAccessories = categoryLower === "accessories";
@@ -497,12 +507,26 @@ export default function ProductDetailsPage() {
       {sizeChartOpen && <SizeChartModal category={product.category} onClose={() => setSizeChartOpen(false)} />}
 
       {/* ── BREADCRUMBS ────────────────────────────────────────────────────── */}
-      <div className="max-w-[1440px] mx-auto pt-[92px] px-6 lg:px-12 pb-4 flex items-center gap-2 text-xs text-[#777]">
+      <div className="max-w-[1440px] mx-auto pt-[92px] px-6 lg:px-12 pb-4 flex flex-wrap items-center gap-2 text-xs text-[#777]">
         <Link to="/" className="hover:text-[#f5c518] transition-colors">Home</Link>
         <span>›</span>
-        <span className="capitalize">{product.category || "Catalog"}</span>
+        {productGender && (
+          <>
+            <Link to="/" className="hover:text-[#f5c518] transition-colors">{productGender}</Link>
+            <span>›</span>
+          </>
+        )}
+        <Link to="/" className="hover:text-[#f5c518] transition-colors capitalize">
+          {catInfo?.label || product.category || "Catalog"}
+        </Link>
+        {productSubcategory && (
+          <>
+            <span>›</span>
+            <span className="text-[#aaa] capitalize">{formatSubcategoryName(product.category, productSubcategory)}</span>
+          </>
+        )}
         <span>›</span>
-        <span className="text-[#ccc] truncate max-w-[280px] md:max-w-md">{product.title}</span>
+        <span className="text-[#ccc] truncate max-w-[240px] md:max-w-md font-medium">{product.title}</span>
       </div>
 
       {/* ── MAIN PRODUCT SECTION (2-Column Desktop Grid) ────────────────────── */}
@@ -643,13 +667,23 @@ export default function ProductDetailsPage() {
             
             {/* Header / Brand & Rating */}
             <div className="border-b border-[#242424] pb-5">
-              <div className="flex items-center gap-2.5 mb-2">
+              <div className="flex flex-wrap items-center gap-2 mb-2.5">
                 <span className="text-xs uppercase font-extrabold tracking-widest text-[#f5c518] bg-[#f5c518]/10 px-2.5 py-0.5 rounded border border-[#f5c518]/30">
                   {product.seller?.store_name || "SNITCH Official"}
                 </span>
-                <span className="text-xs text-[#777] uppercase tracking-wider">
-                  {product.category || "Streetwear"}
+                {productGender && (
+                  <span className="text-xs uppercase font-bold tracking-wider text-[#f5c518] bg-[#1f1f1f] px-2 py-0.5 rounded border border-[#333]">
+                    {productGender}
+                  </span>
+                )}
+                <span className="text-xs text-[#aaa] uppercase tracking-wider bg-[#1a1a1a] px-2 py-0.5 rounded border border-[#2a2a2a]">
+                  {catInfo?.label || product.category || "Streetwear"}
                 </span>
+                {productSubcategory && (
+                  <span className="text-xs text-[#888] uppercase tracking-wider bg-[#141414] px-2 py-0.5 rounded border border-[#262626]">
+                    {formatSubcategoryName(product.category, productSubcategory)}
+                  </span>
+                )}
               </div>
 
               <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white mb-3">
@@ -903,9 +937,25 @@ export default function ProductDetailsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-[#161616] p-4 rounded-lg border border-[#242424]">
                 <div className="flex justify-between border-b border-[#222] pb-2">
-                  <span className="text-[#777]">Category:</span>
-                  <span className="font-bold text-white uppercase">{product.category || "General"}</span>
+                  <span className="text-[#777]">Department:</span>
+                  <span className="font-bold text-[#f5c518] uppercase">{productGender}</span>
                 </div>
+                <div className="flex justify-between border-b border-[#222] pb-2">
+                  <span className="text-[#777]">Category:</span>
+                  <span className="font-bold text-white uppercase">{catInfo?.label || product.category || "General"}</span>
+                </div>
+                {productSubcategory && (
+                  <div className="flex justify-between border-b border-[#222] pb-2">
+                    <span className="text-[#777]">Subcategory:</span>
+                    <span className="font-bold text-white capitalize">{formatSubcategoryName(product.category, productSubcategory)}</span>
+                  </div>
+                )}
+                {product.sku && (
+                  <div className="flex justify-between border-b border-[#222] pb-2">
+                    <span className="text-[#777]">SKU / Identifier:</span>
+                    <span className="font-mono font-bold text-white">{product.sku}</span>
+                  </div>
+                )}
 
                 {isElectronics ? (
                   <>
