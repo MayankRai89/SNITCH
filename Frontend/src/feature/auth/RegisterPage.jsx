@@ -47,14 +47,8 @@ export default function RegisterPage() {
       // seller → /seller/dashboard, buyer → /homepage
       navigate(data.redirect ?? "/homepage", { replace: true });
     } catch (err) {
-      const status = err?.response?.status;
       const message = err?.response?.data?.message ?? "Something went wrong. Please try again.";
-
-      if (status === 409) {
-        navigate("/login", { state: { notice: message } });
-      } else {
-        setError(message);
-      }
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -91,14 +85,19 @@ export default function RegisterPage() {
           {error && (
             <div
               role="alert"
-              className="rounded px-4 py-3 text-sm font-medium"
+              className="rounded px-4 py-3 text-sm font-medium flex flex-col gap-1"
               style={{
                 backgroundColor: "rgba(220,38,38,0.12)",
                 border: "1px solid rgba(220,38,38,0.35)",
                 color: "#f87171",
               }}
             >
-              {error}
+              <span>{error}</span>
+              {error.toLowerCase().includes("already in use") && (
+                <Link to="/login" className="text-xs text-[#f5c518] underline font-bold mt-0.5">
+                  Already have an account? Sign in here →
+                </Link>
+              )}
             </div>
           )}
 

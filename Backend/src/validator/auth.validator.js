@@ -60,9 +60,15 @@ export const loginValidator = [
   body("email")
     .trim()
     .notEmpty()
-    .withMessage("Email is required")
-    .isEmail()
-    .withMessage("Invalid email"),
+    .withMessage("Email or mobile number is required")
+    .custom((value) => {
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+      const isPhone = /^\d{10}$/.test(value);
+      if (!isEmail && !isPhone) {
+        throw new Error("Please enter a valid email or 10-digit mobile number");
+      }
+      return true;
+    }),
   body("password")
     .trim()
     .notEmpty()

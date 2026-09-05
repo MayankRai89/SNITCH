@@ -4,7 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const target = env.VITE_API_URL || "https://snitch-1-ffrl.onrender.com";
+  const target = env.VITE_API_URL || "http://localhost:3000";
 
   return {
     plugins: [react(), tailwindcss()],

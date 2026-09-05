@@ -98,21 +98,21 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
-            {/* Email */}
+            {/* Email or Mobile */}
             <div className="flex flex-col gap-2">
               <label
                 htmlFor="email"
                 className="text-xs font-semibold uppercase tracking-widest"
                 style={{ color: "#9a9078" }}
               >
-                Email Address
+                Email or Mobile Number
               </label>
               <input
                 id="email"
                 name="email"
-                type="email"
-                autoComplete="email"
-                placeholder="you@example.com"
+                type="text"
+                autoComplete="username"
+                placeholder="you@example.com or 10-digit mobile"
                 required
                 value={form.email}
                 onChange={handleChange}

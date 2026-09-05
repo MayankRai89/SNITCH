@@ -94,22 +94,27 @@ export async function register(req, res) {
 
 export async function login(req, res) {
   try {
-    const { email, password } = req.body;
+    const { email, identifier, password } = req.body;
+    const loginIdentifier = (email || identifier || "").trim();
 
-    if (!email || !password) {
+    if (!loginIdentifier || !password) {
       return res
         .status(400)
-        .json({ success: false, message: "email and password are required" });
+        .json({ success: false, message: "Email or mobile and password are required" });
     }
 
-    const user = await SnitchModel.findByEmail(email);
+    let user = await SnitchModel.findByEmail(loginIdentifier);
+    if (!user && /^\d{10}$/.test(loginIdentifier)) {
+      user = await SnitchModel.findByMobile(loginIdentifier);
+    }
+
     if (!user) {
-      return res.status(401).json({ success: false, message: "Invalid credentials" });
+      return res.status(401).json({ success: false, message: "Invalid email/mobile or password" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: "Invalid credentials" });
+      return res.status(401).json({ success: false, message: "Invalid email/mobile or password" });
     }
 
     return setCookieAndRespond(res, user);
