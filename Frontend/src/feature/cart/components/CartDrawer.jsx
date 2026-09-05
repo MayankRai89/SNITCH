@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router";
 import {
   closeCart,
   removeFromCart,
@@ -15,6 +16,7 @@ import {
 
 export default function CartDrawer() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth || {});
   const { items, isOpen, couponCode, discountRate, summary } = useSelector(
     (state) => state.cart
@@ -24,6 +26,45 @@ export default function CartDrawer() {
   const [couponError, setCouponError] = useState("");
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
+
+  // Address state
+  const [address, setAddress] = useState(null);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [addressForm, setAddressForm] = useState({
+    fullName: "",
+    phone: "",
+    street: "",
+    city: "",
+    state: "Delhi",
+    pincode: "",
+  });
+  const [addressError, setAddressError] = useState("");
+
+  // Load saved address for user
+  useEffect(() => {
+    if (user?.id) {
+      try {
+        const saved = localStorage.getItem(`snitch_buyer_address_${user.id}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setAddress(parsed);
+          setAddressForm(parsed);
+        } else {
+          setAddress(null);
+          setAddressForm({
+            fullName: user.full_name || "",
+            phone: user.mobile || "",
+            street: "",
+            city: "",
+            state: "Delhi",
+            pincode: "",
+          });
+        }
+      } catch {
+        setAddress(null);
+      }
+    }
+  }, [user]);
 
   // Fetch server-calculated summary whenever items or couponCode change
   useEffect(() => {
@@ -84,7 +125,54 @@ export default function CartDrawer() {
     }
   };
 
+  const handleSaveAddress = (e) => {
+    e.preventDefault();
+    setAddressError("");
+
+    if (!addressForm.fullName.trim()) {
+      setAddressError("Please enter recipient name");
+      return;
+    }
+    if (!addressForm.phone.trim() || !/^\d{10}$/.test(addressForm.phone.trim())) {
+      setAddressError("Please enter a valid 10-digit mobile number");
+      return;
+    }
+    if (!addressForm.street.trim()) {
+      setAddressError("Please enter street address / flat details");
+      return;
+    }
+    if (!addressForm.city.trim()) {
+      setAddressError("Please enter city");
+      return;
+    }
+    if (!addressForm.pincode.trim() || !/^\d{6}$/.test(addressForm.pincode.trim())) {
+      setAddressError("Please enter a valid 6-digit PIN code");
+      return;
+    }
+
+    setAddress(addressForm);
+    if (user?.id) {
+      localStorage.setItem(`snitch_buyer_address_${user.id}`, JSON.stringify(addressForm));
+    }
+    setShowAddressModal(false);
+  };
+
   const handleCheckout = () => {
+    // If user is not logged in, close drawer and redirect to login
+    if (!user) {
+      dispatch(closeCart());
+      navigate("/login", {
+        state: { notice: "Please sign in or create an account to complete your purchase." },
+      });
+      return;
+    }
+
+    // If user has not filled delivery address, open address form
+    if (!address || !address.street || !address.pincode) {
+      setShowAddressModal(true);
+      return;
+    }
+
     setIsCheckingOut(true);
     setTimeout(() => {
       setIsCheckingOut(false);
@@ -96,7 +184,7 @@ export default function CartDrawer() {
       setTimeout(() => {
         setOrderSuccess(false);
         dispatch(closeCart());
-      }, 3000);
+      }, 3500);
     }, 1500);
   };
 
