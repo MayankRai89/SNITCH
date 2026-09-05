@@ -459,6 +459,32 @@ export default function CartDrawer() {
               )}
             </div>
 
+            {/* Delivery Address Section (for logged-in users) */}
+            {user && (
+              <div className="p-3 bg-[#181818] border border-[#2a2a2a] rounded-lg flex items-center justify-between gap-3 text-xs">
+                <div className="flex items-start gap-2.5 overflow-hidden">
+                  <span className="text-[#f5c518] text-base leading-none">📍</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-white uppercase text-[10px] tracking-wider">
+                      {address ? `Deliver to: ${address.fullName}` : "Delivery Address"}
+                    </p>
+                    <p className="text-[#888] truncate text-[11px] mt-0.5">
+                      {address
+                        ? `${address.street}, ${address.city} - ${address.pincode}`
+                        : "No address saved. Click to add delivery details."}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddressModal(true)}
+                  className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-[#f5c518] bg-[#f5c518]/10 hover:bg-[#f5c518]/20 rounded border border-[#f5c518]/30 transition-colors flex-shrink-0"
+                >
+                  {address ? "Change" : "+ Add"}
+                </button>
+              </div>
+            )}
+
             {/* Price Calculations */}
             <div className="flex flex-col gap-1.5 text-xs border-t border-[#222] pt-3">
               <div className="flex justify-between text-[#9a9078]">
@@ -519,6 +545,138 @@ export default function CartDrawer() {
                 </>
               )}
             </button>
+          </div>
+        )}
+
+        {/* ── ADDRESS MODAL OVERLAY ────────────────────────────────────────── */}
+        {showAddressModal && (
+          <div className="absolute inset-0 bg-[#0d0d0d]/95 backdrop-blur-md z-50 p-6 flex flex-col justify-center animate-in fade-in duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-[#2a2a2a] mb-5">
+              <div>
+                <h3 className="text-base font-black text-white uppercase tracking-tight">
+                  Shipping & Delivery Details
+                </h3>
+                <p className="text-xs text-[#888]">
+                  Enter delivery address for fast drop dispatch
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddressModal(false)}
+                className="w-7 h-7 rounded-full bg-[#202020] text-[#888] hover:text-white flex items-center justify-center text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {addressError && (
+              <div className="mb-4 p-2.5 rounded bg-red-950/40 border border-red-900/60 text-red-400 text-xs font-semibold">
+                {addressError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveAddress} className="flex flex-col gap-3.5 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#9a9078] mb-1">
+                  Recipient Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Rahul Kumar"
+                  value={addressForm.fullName}
+                  onChange={(e) =>
+                    setAddressForm({ ...addressForm, fullName: e.target.value })
+                  }
+                  className="snitch-input py-2 text-xs w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#9a9078] mb-1">
+                  10-Digit Mobile Number *
+                </label>
+                <input
+                  type="tel"
+                  maxLength={10}
+                  placeholder="e.g. 9876543210"
+                  value={addressForm.phone}
+                  onChange={(e) =>
+                    setAddressForm({
+                      ...addressForm,
+                      phone: e.target.value.replace(/\D/g, ""),
+                    })
+                  }
+                  className="snitch-input py-2 text-xs w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#9a9078] mb-1">
+                  House / Flat / Street / Area *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Flat 402, Skyline Residency, MG Road"
+                  value={addressForm.street}
+                  onChange={(e) =>
+                    setAddressForm({ ...addressForm, street: e.target.value })
+                  }
+                  className="snitch-input py-2 text-xs w-full"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#9a9078] mb-1">
+                    City *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Mumbai"
+                    value={addressForm.city}
+                    onChange={(e) =>
+                      setAddressForm({ ...addressForm, city: e.target.value })
+                    }
+                    className="snitch-input py-2 text-xs w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#9a9078] mb-1">
+                    6-Digit PIN Code *
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="e.g. 400001"
+                    value={addressForm.pincode}
+                    onChange={(e) =>
+                      setAddressForm({
+                        ...addressForm,
+                        pincode: e.target.value.replace(/\D/g, ""),
+                      })
+                    }
+                    className="snitch-input py-2 text-xs w-full"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-3 mt-1 border-t border-[#222]">
+                <button
+                  type="button"
+                  onClick={() => setShowAddressModal(false)}
+                  className="flex-1 py-2.5 rounded border border-[#333] hover:bg-[#202020] text-xs font-bold uppercase tracking-wider text-[#aaa] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded bg-[#f5c518] hover:opacity-90 text-xs font-black uppercase tracking-wider text-[#111] transition-opacity"
+                >
+                  Save Address
+                </button>
+              </div>
+            </form>
           </div>
         )}
       </div>

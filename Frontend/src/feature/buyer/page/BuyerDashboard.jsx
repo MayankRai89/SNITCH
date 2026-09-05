@@ -239,25 +239,234 @@ export default function BuyerDashboard() {
 
         {/* Settings Tab */}
         {activeTab === "settings" && (
-          <div className="max-w-md p-6 rounded-xl bg-[#161616] border border-[#2a2a2a] flex flex-col gap-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-white border-b border-[#2a2a2a] pb-3">
-              Profile Details
-            </h3>
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] text-[#777] uppercase font-semibold">Full Name</span>
-              <span className="text-sm text-white font-medium">{user?.full_name}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
+            {/* Profile Details Card */}
+            <div className="p-6 rounded-xl bg-[#161616] border border-[#2a2a2a] flex flex-col gap-4">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-white border-b border-[#2a2a2a] pb-3">
+                Profile Details
+              </h3>
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] text-[#777] uppercase font-semibold">Full Name</span>
+                <span className="text-sm text-white font-medium">{user?.full_name}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] text-[#777] uppercase font-semibold">Email Address</span>
+                <span className="text-sm text-white font-medium">{user?.email}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] text-[#777] uppercase font-semibold">Account Type</span>
+                <span className="text-xs font-bold uppercase text-[#f5c518]">Buyer Account</span>
+              </div>
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] text-[#777] uppercase font-semibold">Email Address</span>
-              <span className="text-sm text-white font-medium">{user?.email}</span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] text-[#777] uppercase font-semibold">Account Type</span>
-              <span className="text-xs font-bold uppercase text-[#f5c518]">Buyer Account</span>
-            </div>
+
+            {/* Saved Delivery Address Card */}
+            <BuyerAddressCard user={user} />
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function BuyerAddressCard({ user }) {
+  const [address, setAddress] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState({
+    fullName: "",
+    phone: "",
+    street: "",
+    city: "",
+    state: "Delhi",
+    pincode: "",
+  });
+  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (user?.id) {
+      try {
+        const saved = localStorage.getItem(`snitch_buyer_address_${user.id}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setAddress(parsed);
+          setForm(parsed);
+        } else {
+          setForm({
+            fullName: user.full_name || "",
+            phone: user.mobile || "",
+            street: "",
+            city: "",
+            state: "Delhi",
+            pincode: "",
+          });
+        }
+      } catch {
+        setAddress(null);
+      }
+    }
+  }, [user]);
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!form.fullName.trim()) {
+      setError("Please enter recipient name");
+      return;
+    }
+    if (!form.phone.trim() || !/^\d{10}$/.test(form.phone.trim())) {
+      setError("Please enter a valid 10-digit mobile number");
+      return;
+    }
+    if (!form.street.trim()) {
+      setError("Please enter street / house address");
+      return;
+    }
+    if (!form.city.trim()) {
+      setError("Please enter city");
+      return;
+    }
+    if (!form.pincode.trim() || !/^\d{6}$/.test(form.pincode.trim())) {
+      setError("Please enter a valid 6-digit PIN code");
+      return;
+    }
+
+    setAddress(form);
+    if (user?.id) {
+      localStorage.setItem(`snitch_buyer_address_${user.id}`, JSON.stringify(form));
+    }
+    setIsEditing(false);
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 3000);
+  };
+
+  return (
+    <div className="p-6 rounded-xl bg-[#161616] border border-[#2a2a2a] flex flex-col gap-4">
+      <div className="flex items-center justify-between border-b border-[#2a2a2a] pb-3">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
+          <span>📍</span> Default Delivery Address
+        </h3>
+        {address && !isEditing && (
+          <button
+            onClick={() => setIsEditing(true)}
+            className="text-xs font-bold text-[#f5c518] hover:underline"
+          >
+            Edit Address
+          </button>
+        )}
+      </div>
+
+      {savedSuccess && (
+        <div className="p-2.5 rounded bg-emerald-950/40 border border-emerald-800/60 text-emerald-400 text-xs font-semibold">
+          ✓ Delivery address saved successfully!
+        </div>
+      )}
+
+      {error && (
+        <div className="p-2.5 rounded bg-red-950/40 border border-red-900/60 text-red-400 text-xs font-semibold">
+          {error}
+        </div>
+      )}
+
+      {isEditing || !address ? (
+        <form onSubmit={handleSave} className="flex flex-col gap-3 text-xs">
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#888] mb-1">
+              Recipient Name *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Rahul Kumar"
+              value={form.fullName}
+              onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+              className="snitch-input py-2 text-xs w-full"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#888] mb-1">
+              10-Digit Mobile Number *
+            </label>
+            <input
+              type="tel"
+              maxLength={10}
+              placeholder="e.g. 9876543210"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, "") })}
+              className="snitch-input py-2 text-xs w-full"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#888] mb-1">
+              Street / Flat / House No *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Flat 402, Skyline Residency"
+              value={form.street}
+              onChange={(e) => setForm({ ...form, street: e.target.value })}
+              className="snitch-input py-2 text-xs w-full"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-[#888] mb-1">
+                City *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Mumbai"
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+                className="snitch-input py-2 text-xs w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-[#888] mb-1">
+                6-Digit PIN Code *
+              </label>
+              <input
+                type="text"
+                maxLength={6}
+                placeholder="e.g. 400001"
+                value={form.pincode}
+                onChange={(e) => setForm({ ...form, pincode: e.target.value.replace(/\D/g, "") })}
+                className="snitch-input py-2 text-xs w-full"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            {address && (
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="flex-1 py-2 rounded border border-[#333] hover:bg-[#202020] text-xs font-bold uppercase tracking-wider text-[#aaa]"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              type="submit"
+              className="flex-1 py-2 rounded bg-[#f5c518] hover:opacity-90 text-xs font-black uppercase tracking-wider text-[#111]"
+            >
+              Save Address
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="flex flex-col gap-2 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-white text-sm">{address.fullName}</span>
+            <span className="text-[#888] font-mono">{address.phone}</span>
+          </div>
+          <p className="text-[#aaa] leading-relaxed">
+            {address.street}, {address.city}, {address.state} - <span className="text-[#f5c518] font-semibold">{address.pincode}</span>
+          </p>
+        </div>
+      )}
     </div>
   );
 }
