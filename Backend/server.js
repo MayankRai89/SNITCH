@@ -6,11 +6,13 @@ import supabase from "./src/config/supabaseClient.js";
 async function checkSupabaseConnection() {
   try {
     const { error } = await supabase
-      .from("_dummy_health_check")
-      .select("*")
+      .from("products")
+      .select("id")
       .limit(1);
-    // A 42P01 / PGRST116 error (table not found) still means the DB is reachable
-    if (error && error.code !== "42P01" && error.code !== "PGRST116") {
+
+    // If query succeeds or returns standard table/schema not found codes, DB is reachable
+    const ignorableCodes = ["42P01", "PGRST116", "PGRST204", "PGRST205"];
+    if (error && !ignorableCodes.includes(error.code) && !error.message?.includes("schema cache")) {
       console.warn("⚠️  Supabase connection warning:", error.message);
     } else {
       console.log("✅ Supabase connected successfully");

@@ -17,13 +17,6 @@ import cartRoutes from "./routes/cart.routes.js";
 const app = express();
 
 // ── Rate Limiters ──────────────────────────────────────────────────────────────
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,
-  message: { success: false, message: "Too many requests, please try again later." },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
 
 const analyticsLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -57,7 +50,7 @@ app.use(cookieParser());
 app.use(passport.initialize());
 
 // ── API Routes ────────────────────────────────────────────────────────────────
-app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/seller", sellerRoutes);
 app.use("/api/products", productRoutes);
 // Reviews nested under products: /api/products/:productId/reviews

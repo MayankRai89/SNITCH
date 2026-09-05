@@ -52,8 +52,11 @@ function setCookieAndRespond(res, user) {
 
 export async function register(req, res) {
   try {
-    // validator uses FullName — map to full_name for the DB
-    const { FullName, email, mobile, password, role } = req.body;
+    const fullName = req.body.fullName || req.body.FullName || req.body.name;
+    const email = req.body.email;
+    const mobile = req.body.mobile || req.body.contactNumber;
+    const password = req.body.password;
+    const role = req.body.role || "buyer";
 
     // Check duplicates
     const existingEmail = await SnitchModel.findByEmail(email);
@@ -71,7 +74,7 @@ export async function register(req, res) {
 
     // Create user
     const user = await SnitchModel.create({
-      full_name: FullName,
+      full_name: fullName,
       email,
       mobile,
       password: hashedPassword,
@@ -81,7 +84,7 @@ export async function register(req, res) {
     return setCookieAndRespond(res, user);
   } catch (err) {
     console.error("[register] error:", err);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res.status(500).json({ success: false, message: err.message || "Internal server error" });
   }
 }
 

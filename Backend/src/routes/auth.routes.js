@@ -1,16 +1,26 @@
 import { Router } from "express";
 import passport from "passport";
+import rateLimit from "express-rate-limit";
 import { register, login, logout, me, googleCallback, googleComplete, googleCompleteLimiter, googleLinkComplete, googleLinkLimiter } from "../controller/auth.controller.js";
 import { registerValidator, loginValidator } from "../validator/auth.validator.js";
 import { authenticate } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
+// Throttle login/register attempts to prevent brute force (50 attempts per 15 min per IP)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  message: { success: false, message: "Too many requests, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // POST /api/auth/register  — body: { name, email, mobile?, password, role: "buyer"|"seller" }
-router.post("/register", registerValidator, register);
+router.post("/register", authLimiter, registerValidator, register);
 
 // POST /api/auth/login     — body: { email, password }
-router.post("/login", loginValidator, login);
+router.post("/login", authLimiter, loginValidator, login);
 
 // POST /api/auth/logout
 router.post("/logout", logout);

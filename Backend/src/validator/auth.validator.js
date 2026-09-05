@@ -11,30 +11,40 @@ function validateRequest(req, res, next) {
 }
 
 export const registerValidator = [
-  body("FullName").trim().notEmpty().withMessage("Full name is required"),
+  body("fullName")
+    .custom((value, { req }) => {
+      const name = value || req.body.FullName || req.body.name;
+      if (!name || !String(name).trim()) {
+        throw new Error("Full name is required");
+      }
+      return true;
+    }),
   body("email")
     .trim()
     .notEmpty()
     .withMessage("Email is required")
     .isEmail()
-    .withMessage("Invalid email"),
+    .withMessage("Invalid email format"),
   body("mobile")
-    .trim()
-    .notEmpty()
-    .withMessage("Mobile is required")
-    .matches(/^\d{10}$/)
-    .withMessage("Mobile number must be 10 digits"),
+    .custom((value, { req }) => {
+      const phone = value || req.body.contactNumber;
+      if (!phone || !String(phone).trim()) {
+        throw new Error("Mobile is required");
+      }
+      if (!/^\d{10}$/.test(String(phone).trim())) {
+        throw new Error("Mobile number must be 10 digits");
+      }
+      return true;
+    }),
   body("password")
     .trim()
     .notEmpty()
     .withMessage("Password is required")
     .isLength({ min: 8 })
     .withMessage("Password must be at least 8 characters")
-    .matches(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-    )
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])/)
     .withMessage(
-      "Password must contain at least one uppercase, one lowercase, one digit, and one special character",
+      "Password must contain at least one uppercase, one lowercase, one digit, and one special character"
     ),
   body("role")
     .trim()
