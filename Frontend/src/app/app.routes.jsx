@@ -24,6 +24,7 @@ import BuyerDashboard from "../feature/buyer/page/BuyerDashboard";
 
 // Common pages
 import NotFoundPage from "../feature/common/NotFoundPage";
+import TechStackModelPage from "../feature/common/TechStackModelPage";
 
 // Route guard
 import ProtectedRoute from "./ProtectedRoute";
@@ -39,6 +40,18 @@ export const router = createBrowserRouter([
   {
     path: "/homepage",
     element: <HomePage />,
+  },
+  {
+    path: "/tech-stack",
+    element: <TechStackModelPage />,
+  },
+  {
+    path: "/model",
+    element: <TechStackModelPage />,
+  },
+  {
+    path: "/architecture",
+    element: <TechStackModelPage />,
   },
   {
     path: "/product/:slug",

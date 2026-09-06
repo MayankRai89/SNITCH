@@ -1881,8 +1881,11 @@ export default function HomePage() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto mt-8 pt-6 border-t border-[#1a1a1a] flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-[#555]">
-          <p>© 2025 SNITCH PREMIUM MARKETPLACE. ALL RIGHTS RESERVED.</p>
-          <div className="flex gap-4">
+          <p>© 2026 SNITCH PREMIUM MARKETPLACE. ALL RIGHTS RESERVED.</p>
+          <div className="flex items-center gap-4">
+            <Link to="/tech-stack" className="text-[#f5c518] hover:underline font-bold">
+              ⚡ Tech Stack & Architecture
+            </Link>
             <span>Privacy Policy</span>
             <span>Terms of Service</span>
             <span>Security</span>
