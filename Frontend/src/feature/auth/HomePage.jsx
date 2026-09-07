@@ -57,81 +57,80 @@ const TRENDING_SEARCHES = [
 // Top visual category story items for quick browsing
 const QUICK_STORIES = [
   {
+    id: "all-drops",
+    label: "All Drops",
+    sub: "Fresh Market",
+    tag: "ALL",
+    icon: "⚡",
+    targetCategory: "all",
+    targetDepartment: "all",
+    img: "https://images.unsplash.com/photo-1552346154-21d32810aba3?w=300&auto=format&fit=crop&q=80",
+  },
+  {
+    id: "clothing",
+    label: "Apparel & Fits",
+    sub: "Dresses, Tops & Blazers",
+    tag: "DROP",
+    icon: "👕",
+    targetCategory: "clothing",
+    img: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=300&auto=format&fit=crop&q=80",
+  },
+  {
     id: "footwear",
     label: "Footwear",
-    sub: "Sneakers & Kicks",
+    sub: "Sandals, Kicks & Slides",
     tag: "HOT",
     icon: "👟",
     targetCategory: "footwear",
     img: "https://images.unsplash.com/photo-1552346154-21d32810aba3?w=300&auto=format&fit=crop&q=80",
   },
   {
-    id: "clothing-tees",
-    label: "Oversized Tees",
-    sub: "Graphic & Heavy",
-    tag: "DROP",
-    icon: "👕",
-    targetCategory: "clothing",
-    targetSubcategory: "t-shirts",
-    img: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=300&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "streetwear-hoodies",
-    label: "Hoodies & Sweats",
-    sub: "Winter & Heavy",
-    tag: "TREND",
-    icon: "🔥",
-    targetCategory: "streetwear",
-    targetSubcategory: "hoodies",
-    img: "https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=300&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "clothing-cargos",
-    label: "Cargos & Denim",
-    sub: "Baggy & Parachute",
-    tag: "NEW",
-    icon: "👖",
-    targetCategory: "clothing",
-    targetSubcategory: "cargos",
-    img: "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=300&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "dept-men",
-    label: "Men's Edit",
-    sub: "Street & Casual",
-    tag: "POPULAR",
-    icon: "🕶️",
-    targetDepartment: "Men",
-    img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300&auto=format&fit=crop&q=80",
+    id: "electronics",
+    label: "Tech & Audio",
+    sub: "ANC Headphones & Gear",
+    tag: "TECH",
+    icon: "🎧",
+    targetCategory: "electronics",
+    img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&auto=format&fit=crop&q=80",
   },
   {
     id: "dept-women",
     label: "Women's Edit",
-    sub: "Elevated Street",
+    sub: "Dresses & Footwear",
     tag: "EXCLUSIVE",
     icon: "✨",
     targetDepartment: "Women",
     img: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
   },
   {
-    id: "electronics",
-    label: "Tech & Audio",
-    sub: "Earbuds & Gear",
-    tag: "TECH",
-    icon: "💻",
-    targetCategory: "electronics",
-    img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&auto=format&fit=crop&q=80",
+    id: "dept-men",
+    label: "Men's Edit",
+    sub: "Blazers & Streetwear",
+    tag: "POPULAR",
+    icon: "🕶️",
+    targetDepartment: "Men",
+    img: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300&auto=format&fit=crop&q=80",
+  },
+  {
+    id: "streetwear-hoodies",
+    label: "Streetwear",
+    sub: "Graphic & Heavy",
+    tag: "TREND",
+    icon: "🔥",
+    targetCategory: "streetwear",
+    img: "https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=300&auto=format&fit=crop&q=80",
   },
   {
     id: "accessories",
     label: "Accessories",
     sub: "Chains, Caps, Bags",
     tag: "GEAR",
-    icon: "🎧",
+    icon: "🧢",
     targetCategory: "accessories",
     img: "https://images.unsplash.com/photo-1576053139778-7e32f2ae3cfd?w=300&auto=format&fit=crop&q=80",
   },
 ];
+
 
 const FEATURES = [
   {
@@ -547,6 +546,10 @@ function ProductCard({ product, onQuickView }) {
           <img
             src={product.cover_image_url}
             alt={product.title}
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&auto=format&fit=crop&q=80";
+            }}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
@@ -827,7 +830,10 @@ function Navbar({
           {/* Category Scope Selector */}
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value);
+              setSelectedSubcategory("all");
+            }}
             className="hidden lg:block bg-[#141414] text-[#9a9078] hover:text-white text-xs font-semibold px-3 py-2.5 border-r border-[#2a2a2a] outline-none cursor-pointer"
           >
             <option value="all">All Drops</option>
@@ -837,6 +843,7 @@ function Navbar({
             <option value="electronics">💻 Tech</option>
             <option value="accessories">🎧 Accessories</option>
           </select>
+
 
           {/* Real-time Search Input */}
           <div className="flex-1 flex items-center px-3 py-1.5">
@@ -1431,9 +1438,12 @@ export default function HomePage() {
   };
 
   const handleStoryClick = (story) => {
-    if (story.targetCategory) setSelectedCategory(story.targetCategory);
-    if (story.targetSubcategory) setSelectedSubcategory(story.targetSubcategory);
-    if (story.targetDepartment) setSelectedDepartment(story.targetDepartment);
+    setSelectedCategory(story.targetCategory || "all");
+    setSelectedSubcategory(story.targetSubcategory || "all");
+    setSelectedDepartment(story.targetDepartment || "all");
+    setSearchQuery("");
+    setPriceFilter("all");
+    setDiscountOnly(false);
     scrollToCatalog();
   };
 
@@ -1456,6 +1466,14 @@ export default function HomePage() {
     setDiscountOnly(false);
     setSortBy("featured");
   };
+
+  const hasActiveFilters =
+    selectedDepartment !== "all" ||
+    selectedCategory !== "all" ||
+    selectedSubcategory !== "all" ||
+    priceFilter !== "all" ||
+    discountOnly ||
+    Boolean(searchQuery.trim());
 
   const activeCategoryObj = selectedCategory !== "all" ? CATEGORY_TREE[selectedCategory] : null;
 
@@ -1710,7 +1728,7 @@ export default function HomePage() {
                   {searchQuery.trim() && (
                     <button
                       onClick={() => setSearchQuery("")}
-                      className="text-xs text-[#f5c518] hover:underline font-semibold"
+                      className="text-xs text-[#f5c518] hover:underline font-semibold cursor-pointer bg-transparent border-none"
                     >
                       Clear Search ✕
                     </button>
@@ -1858,6 +1876,97 @@ export default function HomePage() {
                 </select>
               </div>
             </div>
+
+            {/* Active Filters Summary Chips Bar */}
+            {hasActiveFilters && (
+              <div className="flex flex-wrap items-center gap-2 p-2.5 bg-[#141414] rounded-lg border border-[#262626]">
+                <span className="text-[11px] uppercase font-bold text-[#888] mr-1">
+                  Active Filters:
+                </span>
+
+                {selectedDepartment !== "all" && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#f5c518]/10 text-[#f5c518] border border-[#f5c518]/30 text-xs font-semibold">
+                    Audience: {selectedDepartment}
+                    <button
+                      onClick={() => setSelectedDepartment("all")}
+                      className="hover:text-white cursor-pointer ml-0.5 bg-transparent border-none text-[#f5c518]"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                {selectedCategory !== "all" && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#f5c518]/10 text-[#f5c518] border border-[#f5c518]/30 text-xs font-semibold">
+                    Category: {CATEGORY_TREE[selectedCategory]?.label || selectedCategory}
+                    <button
+                      onClick={() => {
+                        setSelectedCategory("all");
+                        setSelectedSubcategory("all");
+                      }}
+                      className="hover:text-white cursor-pointer ml-0.5 bg-transparent border-none text-[#f5c518]"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                {selectedSubcategory !== "all" && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#f5c518]/10 text-[#f5c518] border border-[#f5c518]/30 text-xs font-semibold">
+                    Subcategory: {selectedSubcategory}
+                    <button
+                      onClick={() => setSelectedSubcategory("all")}
+                      className="hover:text-white cursor-pointer ml-0.5 bg-transparent border-none text-[#f5c518]"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                {priceFilter !== "all" && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#f5c518]/10 text-[#f5c518] border border-[#f5c518]/30 text-xs font-semibold">
+                    Price: {priceFilter}
+                    <button
+                      onClick={() => setPriceFilter("all")}
+                      className="hover:text-white cursor-pointer ml-0.5 bg-transparent border-none text-[#f5c518]"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                {discountOnly && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-red-950/60 text-red-400 border border-red-800/40 text-xs font-semibold">
+                    On Sale
+                    <button
+                      onClick={() => setDiscountOnly(false)}
+                      className="hover:text-white cursor-pointer ml-0.5 bg-transparent border-none text-red-400"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                {searchQuery.trim() && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#f5c518]/10 text-[#f5c518] border border-[#f5c518]/30 text-xs font-semibold">
+                    &ldquo;{searchQuery}&rdquo;
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="hover:text-white cursor-pointer ml-0.5 bg-transparent border-none text-[#f5c518]"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+
+                <button
+                  onClick={resetAllFilters}
+                  className="text-xs text-[#f5c518] hover:underline font-bold ml-auto cursor-pointer bg-transparent border-none py-1 px-2"
+                >
+                  Reset All ✕
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Product Grid */}
@@ -1874,15 +1983,26 @@ export default function HomePage() {
                 No matching products found for &ldquo;<span className="text-[#f5c518]">{searchQuery || "selected filters"}</span>&rdquo;
               </h3>
               <p className="text-xs text-[#9a9078] mb-6 max-w-md mx-auto">
-                Try searching for broader terms like <strong>sneakers</strong>, <strong>oversized tee</strong>, <strong>hoodie</strong>, or <strong>cargos</strong>.
+                {allProducts.length > 0
+                  ? `There are currently ${allProducts.length} items in the store. Clear your current filters to view all products.`
+                  : "No products currently available in the catalog. Please check back soon or reload."}
               </p>
               <div className="flex justify-center gap-3">
-                <button
-                  onClick={resetAllFilters}
-                  className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider rounded bg-[#f5c518] text-[#111] hover:bg-[#e0b415] transition-colors"
-                >
-                  Reset All Filters
-                </button>
+                {allProducts.length > 0 ? (
+                  <button
+                    onClick={resetAllFilters}
+                    className="px-6 py-3 text-xs font-black uppercase tracking-wider rounded bg-[#f5c518] text-[#111] hover:bg-[#e0b415] transition-all cursor-pointer shadow-lg hover:shadow-[0_0_15px_rgba(245,197,24,0.4)]"
+                  >
+                    Show All {allProducts.length} Products
+                  </button>
+                ) : (
+                  <button
+                    onClick={loadCatalog}
+                    className="px-6 py-3 text-xs font-black uppercase tracking-wider rounded bg-[#f5c518] text-[#111] hover:bg-[#e0b415] transition-all cursor-pointer shadow-lg"
+                  >
+                    Reload Catalog ⟳
+                  </button>
+                )}
               </div>
             </div>
           ) : (
