@@ -11,6 +11,7 @@ import { useSelector } from "react-redux";
  * Usage:
  *   <Route element={<ProtectedRoute />}>          ← any logged-in user
  *   <Route element={<ProtectedRoute role="seller" />}>  ← sellers only
+ *   <Route element={<ProtectedRoute role="buyer" />}>   ← buyers only
  */
 export default function ProtectedRoute({ role }) {
   const { isAuth, user, isLoading } = useSelector((state) => state.auth);
@@ -44,3 +45,47 @@ export default function ProtectedRoute({ role }) {
 
   return <Outlet />;
 }
+
+/**
+ * PublicBuyerRoute
+ *
+ * For public store and buyer-facing pages:
+ * If a seller is logged in, they are NOT allowed on buyer/marketplace pages.
+ * They are automatically redirected to /seller/dashboard.
+ */
+export function PublicBuyerRoute() {
+  const { isAuth, user, isLoading } = useSelector((state) => state.auth);
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (isAuth && user?.role === "seller") {
+    return <Navigate to="/seller/dashboard" replace />;
+  }
+
+  return <Outlet />;
+}
+
+/**
+ * AuthRoute
+ *
+ * For /login and /register pages:
+ * If user is already authenticated:
+ *   - sellers go to /seller/dashboard
+ *   - buyers go to /homepage
+ */
+export function AuthRoute() {
+  const { isAuth, user, isLoading } = useSelector((state) => state.auth);
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (isAuth) {
+    return <Navigate to={user?.role === "seller" ? "/seller/dashboard" : "/homepage"} replace />;
+  }
+
+  return <Outlet />;
+}
+

@@ -62,3 +62,10 @@ export async function completeGoogleLink({ token, password }) {
   return response.data;
 }
 
+export async function logoutUser() {
+  const response = await authApiInstaaance.post("/logout");
+  return response.data;
+}
+
+
+

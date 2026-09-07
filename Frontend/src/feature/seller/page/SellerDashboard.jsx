@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router";
 import { useSelector, useDispatch } from "react-redux";
 import { useGetSellerProfile, useSeller } from "../hook/useseller";
 import { useGetSellerProducts, useProduct } from "../../product/hook/useproduct";
 import { removeProduct } from "../../product/state/product.slice";
 import { deleteProduct } from "../../product/services/product.api";
+import { logout } from "../../auth/state/auth.slice";
+import { logoutUser } from "../../auth/services/auth.api";
+
 
 // ── Stat Card ──────────────────────────────────────────────────────────────────
 

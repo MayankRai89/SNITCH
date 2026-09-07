@@ -26,52 +26,63 @@ import BuyerDashboard from "../feature/buyer/page/BuyerDashboard";
 import NotFoundPage from "../feature/common/NotFoundPage";
 import TechStackModelPage from "../feature/common/TechStackModelPage";
 
-// Route guard
-import ProtectedRoute from "./ProtectedRoute";
+// Route guards
+import ProtectedRoute, { PublicBuyerRoute, AuthRoute } from "./ProtectedRoute";
 
 export const router = createBrowserRouter([
 
-  // ── Public Routes ───────────────────────────────────────────────────────────
+  // ── Public & Buyer Marketplace Routes (Sellers are restricted and sent to /seller/dashboard) ───
+  {
+    element: <PublicBuyerRoute />,
+    children: [
+      {
+        path: "/",
+        element: <HomePage />,
+      },
+      {
+        path: "/homepage",
+        element: <HomePage />,
+      },
+      {
+        path: "/tech-stack",
+        element: <TechStackModelPage />,
+      },
+      {
+        path: "/model",
+        element: <TechStackModelPage />,
+      },
+      {
+        path: "/architecture",
+        element: <TechStackModelPage />,
+      },
+      {
+        path: "/product/:slug",
+        element: <ProductDetailsPage />,
+      },
+      {
+        path: "/p/:slug",
+        element: <ProductDetailsPage />,
+      },
+      {
+        path: "/store/:slug",
+        element: <StorefrontPage />,
+      },
+    ],
+  },
 
+  // ── Auth Routes (Login / Register) — If logged in, sellers -> /seller/dashboard, buyers -> /homepage ─
   {
-    path: "/",
-    element: <HomePage />,
-  },
-  {
-    path: "/homepage",
-    element: <HomePage />,
-  },
-  {
-    path: "/tech-stack",
-    element: <TechStackModelPage />,
-  },
-  {
-    path: "/model",
-    element: <TechStackModelPage />,
-  },
-  {
-    path: "/architecture",
-    element: <TechStackModelPage />,
-  },
-  {
-    path: "/product/:slug",
-    element: <ProductDetailsPage />,
-  },
-  {
-    path: "/p/:slug",
-    element: <ProductDetailsPage />,
-  },
-  {
-    path: "/store/:slug",
-    element: <StorefrontPage />,
-  },
-  {
-    path: "/login",
-    element: <LoginPage />,
-  },
-  {
-    path: "/register",
-    element: <RegisterPage />,
+    element: <AuthRoute />,
+    children: [
+      {
+        path: "/login",
+        element: <LoginPage />,
+      },
+      {
+        path: "/register",
+        element: <RegisterPage />,
+      },
+    ],
   },
 
   // ── Google OAuth callback pages ─────────────────────────────────────────────
@@ -132,3 +143,4 @@ export const router = createBrowserRouter([
     element: <NotFoundPage />,
   },
 ]);
+
