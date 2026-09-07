@@ -1229,6 +1229,38 @@ function Navbar({
   );
 }
 
+// ── Product Meta Extractors ───────────────────────────────────────────────────
+function extractProductGender(p) {
+  if (p.gender && typeof p.gender === "string" && p.gender.trim()) return p.gender;
+  if (!p.tags || !Array.isArray(p.tags)) return "Unisex";
+  for (const t of p.tags) {
+    if (typeof t !== "string") continue;
+    if (t.toLowerCase().startsWith("gender:")) return t.split(":")[1];
+    if (["Men", "Women", "Unisex"].includes(t)) return t;
+    if (t.toLowerCase() === "men") return "Men";
+    if (t.toLowerCase() === "women") return "Women";
+    if (t.toLowerCase() === "unisex") return "Unisex";
+  }
+  return "Unisex";
+}
+
+function extractProductSubcategory(p) {
+  if (p.subcategory && typeof p.subcategory === "string" && p.subcategory.trim()) return p.subcategory;
+  if (!p.tags || !Array.isArray(p.tags)) return "";
+  for (const t of p.tags) {
+    if (typeof t !== "string") continue;
+    if (t.toLowerCase().startsWith("sub:")) return t.split(":")[1];
+  }
+  for (const t of p.tags) {
+    if (typeof t !== "string") continue;
+    const lower = t.toLowerCase();
+    if (["sneakers", "slides-sandals", "t-shirts", "hoodies", "cargos", "jeans", "jackets", "audio", "chains-rings", "caps-hats", "backpacks", "wearables"].includes(lower)) {
+      return lower;
+    }
+  }
+  return "";
+}
+
 // ── Main Page Component ────────────────────────────────────────────────────────
 
 export default function HomePage() {
@@ -1262,7 +1294,12 @@ export default function HomePage() {
     try {
       const data = await getPublicCatalog();
       if (data && data.products) {
-        setAllProducts(data.products);
+        const normalized = data.products.map((p) => ({
+          ...p,
+          gender: extractProductGender(p),
+          subcategory: extractProductSubcategory(p),
+        }));
+        setAllProducts(normalized);
       }
     } catch (err) {
       console.error("Failed to load catalog:", err);
@@ -1287,12 +1324,26 @@ export default function HomePage() {
     });
   }, [allProducts]);
 
+  const electronicsProducts = useMemo(() => {
+    return allProducts.filter((p) => (p.category || "").toLowerCase() === "electronics");
+  }, [allProducts]);
+
+  const accessoriesProducts = useMemo(() => {
+    return allProducts.filter((p) => (p.category || "").toLowerCase() === "accessories");
+  }, [allProducts]);
+
   const menProducts = useMemo(() => {
-    return allProducts.filter((p) => (p.gender || "").toLowerCase() === "men");
+    return allProducts.filter((p) => {
+      const g = (p.gender || "").toLowerCase();
+      return g === "men" || g === "unisex";
+    });
   }, [allProducts]);
 
   const womenProducts = useMemo(() => {
-    return allProducts.filter((p) => (p.gender || "").toLowerCase() === "women");
+    return allProducts.filter((p) => {
+      const g = (p.gender || "").toLowerCase();
+      return g === "women" || g === "unisex";
+    });
   }, [allProducts]);
 
   // Filtered explorer products with Smart Scorer
@@ -1301,7 +1352,11 @@ export default function HomePage() {
 
     // 1. Department Filter
     if (selectedDepartment !== "all") {
-      list = list.filter((p) => (p.gender || "").toLowerCase() === selectedDepartment.toLowerCase());
+      const target = selectedDepartment.toLowerCase();
+      list = list.filter((p) => {
+        const g = (p.gender || "Unisex").toLowerCase();
+        return g === target || g === "unisex";
+      });
     }
 
     // 2. Category Filter
@@ -1311,7 +1366,14 @@ export default function HomePage() {
 
     // 3. Subcategory Filter
     if (selectedSubcategory !== "all") {
-      list = list.filter((p) => (p.subcategory || "").toLowerCase() === selectedSubcategory.toLowerCase());
+      const targetSub = selectedSubcategory.toLowerCase();
+      list = list.filter((p) => {
+        const sub = (p.subcategory || "").toLowerCase();
+        return (
+          sub === targetSub ||
+          (p.tags && p.tags.some((t) => t.toLowerCase() === targetSub || t.toLowerCase() === `sub:${targetSub}`))
+        );
+      });
     }
 
     // 4. Price Bracket Filter
@@ -1358,6 +1420,7 @@ export default function HomePage() {
 
     return list;
   }, [allProducts, selectedDepartment, selectedCategory, selectedSubcategory, priceFilter, discountOnly, searchQuery, sortBy]);
+
 
   // Scroll smoothly to catalog explorer
   const scrollToCatalog = () => {
@@ -1591,6 +1654,39 @@ export default function HomePage() {
             }}
           />
         )}
+
+        {/* ── CATEGORIZED SHELF 4: TECH & ELECTRONICS ──────────────────────── */}
+        {!searchQuery.trim() && electronicsProducts.length > 0 && (
+          <CategorizedShelf
+            title="Tech, Audio & Electronics"
+            subtitle="Premium noise-cancelling headphones, audio gear & smart gadgets"
+            badge="TECH DROPS"
+            icon="🎧"
+            products={electronicsProducts}
+            onQuickView={(p) => setQuickViewProduct(p)}
+            onExploreCategory={() => {
+              setSelectedCategory("electronics");
+              scrollToCatalog();
+            }}
+          />
+        )}
+
+        {/* ── CATEGORIZED SHELF 5: ACCESSORIES & GEAR ───────────────────────── */}
+        {!searchQuery.trim() && accessoriesProducts.length > 0 && (
+          <CategorizedShelf
+            title="Accessories & Street Gear"
+            subtitle="Chains, rings, caps, utility bags & wallets"
+            badge="GEAR"
+            icon="⚡"
+            products={accessoriesProducts}
+            onQuickView={(p) => setQuickViewProduct(p)}
+            onExploreCategory={() => {
+              setSelectedCategory("accessories");
+              scrollToCatalog();
+            }}
+          />
+        )}
+
 
         {/* ── INTERACTIVE FULL CATALOG EXPLORER & ADVANCED SEARCH ───────────── */}
         <section id="catalog-explorer" className="w-full px-4 sm:px-8 py-12 border-b border-[#2a2a2a]">
