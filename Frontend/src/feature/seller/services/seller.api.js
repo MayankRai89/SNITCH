@@ -11,17 +11,17 @@ export async function getMySellerProfile() {
 }
 
 export async function createSellerProfile(sellerData) {
-  const response = await sellerApiClient.post("/", sellerData);
+  const response = await sellerApiClient.post("", sellerData);
   return response.data;
 }
 
 export async function updateSellerProfile(updates) {
-  const response = await sellerApiClient.put("/", updates);
+  const response = await sellerApiClient.put("", updates);
   return response.data;
 }
 
 export async function deleteSellerProfile() {
-  const response = await sellerApiClient.delete("/");
+  const response = await sellerApiClient.delete("");
   return response.data;
 }
 

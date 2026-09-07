@@ -1,11 +1,17 @@
 {
+  "cleanUrls": true,
+  "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/api/:match*",
-      "destination": "https://snitch-1-ffrl.onrender.com/api/:match*"
+      "source": "/api/(.*)",
+      "destination": "https://snitch-1-ffrl.onrender.com/api/$1"
     },
     {
-      "source": "/(.*)",
+      "source": "/api",
+      "destination": "https://snitch-1-ffrl.onrender.com/api"
+    },
+    {
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]

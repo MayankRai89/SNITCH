@@ -9,7 +9,7 @@ const productApiClient = axios.create({
  * Fetch public catalog with optional filters
  */
 export async function getPublicCatalog(params = {}) {
-  const response = await productApiClient.get("/", { params });
+  const response = await productApiClient.get("", { params });
   return response.data;
 }
 
@@ -41,7 +41,7 @@ export async function getSellerProductById(id) {
  * Seller: create a new product with FormData (images + details)
  */
 export async function createProduct(formData) {
-  const response = await productApiClient.post("/", formData, {
+  const response = await productApiClient.post("", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
