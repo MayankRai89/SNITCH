@@ -479,9 +479,11 @@ export default function EditProductPage() {
       fd.append("subcategory", form.subcategory || "");
       fd.append("sku", form.sku.trim());
       fd.append("price", form.price);
-      if (form.compareAtPrice)
+      if (form.compareAtPrice && String(form.compareAtPrice).trim() !== "") {
         fd.append("compare_at_price", form.compareAtPrice);
-      else fd.append("compare_at_price", "");
+      } else {
+        fd.append("compare_at_price", "");
+      }
       fd.append("stock", form.stock || "0");
       fd.append("is_active", String(form.isActive));
 

@@ -433,7 +433,9 @@ export default function CreateProductPage() {
     fd.append("subcategory", form.subcategory || "");
     fd.append("sku", form.sku.trim());
     fd.append("price", form.price);
-    if (form.compareAtPrice) fd.append("compare_at_price", form.compareAtPrice);
+    if (form.compareAtPrice && String(form.compareAtPrice).trim() !== "") {
+      fd.append("compare_at_price", form.compareAtPrice);
+    }
     fd.append("stock", form.stock || "0");
 
     // Automatically append gender and subcategory into searchable tags

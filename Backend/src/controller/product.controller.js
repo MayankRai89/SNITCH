@@ -1,5 +1,6 @@
 import ProductModel from "../model/product.model.js";
 import SellerModel from "../model/seller.model.js";
+import SnitchModel from "../model/user.model.js";
 import { uploadImageToStorage, uploadMultipleImages } from "../service/storage.service.js";
 
 /**
@@ -18,6 +19,46 @@ function slugify(text) {
 }
 
 /**
+ * Safe JSON parser helper to prevent 500 errors on malformed payloads
+ */
+function safeJsonParse(val, fallback) {
+  if (val === undefined || val === null || val === "") return fallback;
+  if (typeof val === "object") return val;
+  try {
+    return JSON.parse(val);
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Ensure seller profile exists for the user; auto-creates if needed
+ */
+async function getOrEnsureSeller(userId) {
+  let seller = await SellerModel.findByUserId(userId);
+  if (!seller) {
+    const user = await SnitchModel.findById(userId);
+    const storeName = user?.full_name ? `${user.full_name}'s Store` : "Seller Store";
+    let baseSlug = slugify(storeName || "seller-store");
+    let storeSlug = baseSlug;
+    let counter = 1;
+    while (await SellerModel.isSlugTaken(storeSlug)) {
+      storeSlug = `${baseSlug}-${counter++}`;
+    }
+    seller = await SellerModel.create({
+      user_id: userId,
+      store_name: storeName,
+      store_slug: storeSlug,
+      business_type: "individual",
+      verification_status: "verified",
+      onboarding_step: 3,
+      is_active: true,
+    });
+  }
+  return seller;
+}
+
+/**
  * POST /api/products
  * Create a new product with image uploads to Supabase Storage
  */
@@ -25,14 +66,8 @@ export async function createProduct(req, res) {
   try {
     const userId = req.user.id;
 
-    // 1. Verify that user has an active seller profile
-    const seller = await SellerModel.findByUserId(userId);
-    if (!seller) {
-      return res.status(403).json({
-        success: false,
-        message: "You must complete your seller profile before creating products.",
-      });
-    }
+    // 1. Verify / ensure seller profile
+    const seller = await getOrEnsureSeller(userId);
 
     const {
       title,
@@ -47,6 +82,7 @@ export async function createProduct(req, res) {
       tags,
       color_prices,
       variants,
+      is_active,
     } = req.body;
 
     if (!title || !price || !category) {
@@ -57,7 +93,8 @@ export async function createProduct(req, res) {
     }
 
     const numPrice = parseFloat(price);
-    const numCompareAtPrice = compare_at_price ? parseFloat(compare_at_price) : null;
+    const hasCompareAtPrice = compare_at_price !== undefined && compare_at_price !== null && String(compare_at_price).trim() !== "";
+    const numCompareAtPrice = hasCompareAtPrice ? parseFloat(compare_at_price) : null;
 
     if (isNaN(numPrice) || numPrice < 0) {
       return res.status(400).json({
@@ -113,11 +150,13 @@ export async function createProduct(req, res) {
     }
 
     // 4. Parse array and object fields (if sent as JSON strings via FormData)
-    const parsedSizes = typeof sizes === "string" ? JSON.parse(sizes || "[]") : (sizes || []);
-    const parsedColors = typeof colors === "string" ? JSON.parse(colors || "[]") : (colors || []);
-    const parsedTags = typeof tags === "string" ? JSON.parse(tags || "[]") : (tags || []);
-    const parsedColorPrices = typeof color_prices === "string" ? JSON.parse(color_prices || "{}") : (color_prices || {});
-    const parsedVariants = typeof variants === "string" ? JSON.parse(variants || "[]") : (variants || []);
+    const parsedSizes = safeJsonParse(sizes, []);
+    const parsedColors = safeJsonParse(colors, []);
+    const parsedTags = safeJsonParse(tags, []);
+    const parsedColorPrices = safeJsonParse(color_prices, {});
+    const parsedVariants = safeJsonParse(variants, []);
+
+    const isActive = is_active !== "false" && is_active !== false;
 
     // 5. Create product record in database
     const product = await ProductModel.create({
@@ -126,8 +165,8 @@ export async function createProduct(req, res) {
       slug: finalSlug,
       description: description || null,
       category: category.toLowerCase(),
-      price: parseFloat(price),
-      compare_at_price: compare_at_price ? parseFloat(compare_at_price) : null,
+      price: numPrice,
+      compare_at_price: numCompareAtPrice,
       stock: parseInt(stock, 10) || 0,
       sku: sku || null,
       sizes: parsedSizes,
@@ -137,7 +176,7 @@ export async function createProduct(req, res) {
       variants: parsedVariants,
       cover_image_url,
       images,
-      is_active: true,
+      is_active: isActive,
     });
 
     return res.status(201).json({
@@ -158,10 +197,7 @@ export async function createProduct(req, res) {
 export async function getMyProducts(req, res) {
   try {
     const userId = req.user.id;
-    const seller = await SellerModel.findByUserId(userId);
-    if (!seller) {
-      return res.status(403).json({ success: false, message: "Seller profile not found." });
-    }
+    const seller = await getOrEnsureSeller(userId);
 
     const products = await ProductModel.findBySellerId(seller.id);
 
@@ -183,10 +219,7 @@ export async function getSellerProductById(req, res) {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const seller = await SellerModel.findByUserId(userId);
-    if (!seller) {
-      return res.status(403).json({ success: false, message: "Seller profile not found." });
-    }
+    const seller = await getOrEnsureSeller(userId);
 
     const product = await ProductModel.findById(id);
     if (!product || product.seller_id !== seller.id) {
@@ -209,10 +242,7 @@ export async function updateProduct(req, res) {
     const { id } = req.params;
     const userId = req.user.id;
 
-    const seller = await SellerModel.findByUserId(userId);
-    if (!seller) {
-      return res.status(403).json({ success: false, message: "Seller profile not found." });
-    }
+    const seller = await getOrEnsureSeller(userId);
 
     const existingProduct = await ProductModel.findById(id);
     if (!existingProduct || existingProduct.seller_id !== seller.id) {
@@ -226,26 +256,30 @@ export async function updateProduct(req, res) {
     if (description !== undefined) updates.description = description;
     if (category !== undefined) updates.category = category.toLowerCase();
     if (price !== undefined) updates.price = parseFloat(price);
-    if (compare_at_price !== undefined) updates.compare_at_price = compare_at_price ? parseFloat(compare_at_price) : null;
-    if (stock !== undefined) updates.stock = parseInt(stock, 10);
+
+    const hasCompareAtPrice = compare_at_price !== undefined && compare_at_price !== null && String(compare_at_price).trim() !== "";
+    if (compare_at_price !== undefined) {
+      updates.compare_at_price = hasCompareAtPrice ? parseFloat(compare_at_price) : null;
+    }
+    if (stock !== undefined) updates.stock = parseInt(stock, 10) || 0;
     if (sku !== undefined) updates.sku = sku;
-    if (is_active !== undefined) updates.is_active = is_active;
+    if (is_active !== undefined) updates.is_active = is_active !== "false" && is_active !== false;
 
     const finalPrice = updates.price !== undefined ? updates.price : existingProduct.price;
     const finalCompareAt = updates.compare_at_price !== undefined ? updates.compare_at_price : existingProduct.compare_at_price;
 
-    if (finalCompareAt !== null && finalCompareAt !== undefined && finalCompareAt < finalPrice) {
+    if (finalCompareAt !== null && finalCompareAt !== undefined && !isNaN(finalCompareAt) && finalCompareAt < finalPrice) {
       return res.status(400).json({
         success: false,
         message: "Compare at price (MRP / Original Price) must be greater than or equal to the selling price.",
       });
     }
 
-    if (sizes !== undefined) updates.sizes = typeof sizes === "string" ? JSON.parse(sizes) : sizes;
-    if (colors !== undefined) updates.colors = typeof colors === "string" ? JSON.parse(colors) : colors;
-    if (tags !== undefined) updates.tags = typeof tags === "string" ? JSON.parse(tags) : tags;
-    if (color_prices !== undefined) updates.color_prices = typeof color_prices === "string" ? JSON.parse(color_prices) : color_prices;
-    if (variants !== undefined) updates.variants = typeof variants === "string" ? JSON.parse(variants) : variants;
+    if (sizes !== undefined) updates.sizes = safeJsonParse(sizes, []);
+    if (colors !== undefined) updates.colors = safeJsonParse(colors, []);
+    if (tags !== undefined) updates.tags = safeJsonParse(tags, []);
+    if (color_prices !== undefined) updates.color_prices = safeJsonParse(color_prices, {});
+    if (variants !== undefined) updates.variants = safeJsonParse(variants, []);
 
     // Optional new image uploads
     const files = req.files || {};
