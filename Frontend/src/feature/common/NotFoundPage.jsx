@@ -1,6 +1,10 @@
 import { Link } from "react-router";
+import { useSelector } from "react-redux";
 
 export default function NotFoundPage() {
+  const user = useSelector((state) => state.auth?.user);
+  const isSeller = user?.role === "seller";
+
   return (
     <div className="min-h-screen bg-[#111111] text-[#e5e2e1] flex flex-col items-center justify-center p-6 text-center font-sans">
       <p className="text-xs font-bold uppercase tracking-widest text-[#f5c518] mb-3">
@@ -14,12 +18,14 @@ export default function NotFoundPage() {
       </p>
       <div className="flex gap-4">
         <Link
-          to="/"
+          to={isSeller ? "/seller/dashboard" : "/"}
           className="px-8 py-3.5 bg-[#f5c518] text-[#111] font-bold text-xs uppercase tracking-widest rounded hover:opacity-90 transition-opacity"
+          style={{ textDecoration: "none" }}
         >
-          Return to Marketplace
+          {isSeller ? "Return to Seller Dashboard" : "Return to Marketplace"}
         </Link>
       </div>
     </div>
   );
 }
+

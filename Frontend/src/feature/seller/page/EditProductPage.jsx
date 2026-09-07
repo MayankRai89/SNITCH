@@ -605,7 +605,7 @@ export default function EditProductPage() {
         }}
       >
         <Link
-          to="/"
+          to="/seller/dashboard"
           className="text-xl font-black tracking-tighter"
           style={{
             color: "#f5c518",
@@ -615,6 +615,7 @@ export default function EditProductPage() {
         >
           SNITCH
         </Link>
+
 
         <div className="flex items-center gap-6">
           <Link

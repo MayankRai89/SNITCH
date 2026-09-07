@@ -173,9 +173,10 @@ export default function SellerOnboarding() {
         className="fixed top-0 w-full z-50 flex items-center justify-between px-8 h-[68px]"
         style={{ backgroundColor: "#111111", borderBottom: "1px solid #2a2a2a" }}
       >
-        <Link to="/" className="text-xl font-black" style={{ color: "#f5c518", textDecoration: "none", letterSpacing: "-0.03em" }}>
+        <Link to="/seller/dashboard" className="text-xl font-black" style={{ color: "#f5c518", textDecoration: "none", letterSpacing: "-0.03em" }}>
           SNITCH
         </Link>
+
         <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#9a9078" }}>
           Seller Onboarding
         </p>

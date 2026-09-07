@@ -192,6 +192,28 @@ export default function SellerDashboard() {
   const { sellerProducts, isLoading: productsLoading } = useProduct();
 
   const [initialized, setInitialized] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // Ignore errors on logout
+    }
+    dispatch(logout());
+    navigate("/login", { replace: true });
+  };
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleDeleteProduct = async (product) => {
     if (!window.confirm(`Are you sure you want to delete "${product.title}"?`)) return;
@@ -264,30 +286,16 @@ export default function SellerDashboard() {
         className="fixed top-0 w-full z-50 flex items-center justify-between px-8 h-[68px]"
         style={{ backgroundColor: "#111111", borderBottom: "1px solid #2a2a2a" }}
       >
-        <Link to="/" className="text-xl font-black" style={{ color: "#f5c518", textDecoration: "none", letterSpacing: "-0.03em" }}>
-          SNITCH
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link to="/seller/dashboard" className="text-xl font-black" style={{ color: "#f5c518", textDecoration: "none", letterSpacing: "-0.03em" }}>
+            SNITCH
+          </Link>
+          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-[#f5c518]/15 text-[#f5c518] border border-[#f5c518]/30">
+            Seller Portal
+          </span>
+        </div>
 
         <div className="flex items-center gap-5">
-          {/* Storefront link */}
-          {profile?.store_slug && (
-            <Link
-              to={`/store/${profile.store_slug}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs font-semibold uppercase tracking-widest flex items-center gap-1.5 transition-colors"
-              style={{ color: "#9a9078", textDecoration: "none" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#f5c518")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#9a9078")}
-            >
-              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-              My Store
-            </Link>
-          )}
-
           {/* Add product CTA */}
           <Link
             to="/seller/products/new"
@@ -302,25 +310,74 @@ export default function SellerDashboard() {
             Add Product
           </Link>
 
-          {/* User menu */}
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded cursor-pointer transition-colors"
-            style={{ border: "1px solid #2a2a2a", backgroundColor: "transparent" }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#3a3a3a")}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#2a2a2a")}
-          >
-            <div
-              className="flex items-center justify-center rounded-full text-xs font-black flex-shrink-0"
-              style={{ width: 24, height: 24, backgroundColor: "#f5c518", color: "#111" }}
+          {/* User menu & Sign Out Dropdown */}
+          <div ref={dropdownRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setDropdownOpen((v) => !v)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded cursor-pointer transition-colors"
+              style={{ border: "1px solid #2a2a2a", backgroundColor: dropdownOpen ? "#222" : "transparent" }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#3a3a3a")}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#2a2a2a")}
             >
-              {user?.full_name?.[0]?.toUpperCase() ?? "S"}
-            </div>
-            <span className="text-xs font-semibold" style={{ color: "#e5e2e1", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {user?.full_name ?? "Seller"}
-            </span>
+              <div
+                className="flex items-center justify-center rounded-full text-xs font-black flex-shrink-0"
+                style={{ width: 24, height: 24, backgroundColor: "#f5c518", color: "#111" }}
+              >
+                {user?.full_name?.[0]?.toUpperCase() ?? "S"}
+              </div>
+              <span className="text-xs font-semibold" style={{ color: "#e5e2e1", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {user?.full_name ?? "Seller"}
+              </span>
+              <svg width="12" height="12" fill="none" stroke="#9a9078" strokeWidth="2" viewBox="0 0 24 24">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {dropdownOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 mt-2 w-56 rounded-lg shadow-2xl overflow-hidden z-50 animate-in fade-in"
+                style={{ backgroundColor: "#1a1a1a", border: "1px solid #2a2a2a" }}
+              >
+                <div className="p-3 border-b border-[#2a2a2a] bg-[#141414]">
+                  <p className="text-xs font-bold text-white truncate">{user?.full_name}</p>
+                  <p className="text-[10px] text-[#9a9078] truncate">{user?.email}</p>
+                  <span className="inline-block text-[9px] font-bold uppercase tracking-widest text-[#f5c518] mt-1 bg-[#f5c518]/10 px-1.5 py-0.5 rounded border border-[#f5c518]/20">
+                    Seller Account
+                  </span>
+                </div>
+
+                <div className="p-1">
+                  <Link
+                    to="/seller/products/new"
+                    onClick={() => setDropdownOpen(false)}
+                    className="flex items-center gap-2 w-full p-2 text-xs font-semibold rounded hover:bg-[#252525] text-[#ccc] hover:text-[#f5c518] transition-colors"
+                    style={{ textDecoration: "none" }}
+                  >
+                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    Add New Product
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 w-full p-2 text-xs font-semibold rounded hover:bg-red-950/40 text-red-400 transition-colors border-none cursor-pointer text-left"
+                  >
+                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </nav>
+
 
       <main className="pt-[68px]">
         <div className="max-w-[1280px] mx-auto px-8 py-12">

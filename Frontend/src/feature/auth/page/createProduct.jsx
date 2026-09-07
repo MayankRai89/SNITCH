@@ -540,12 +540,13 @@ export default function CreateProductPage() {
         style={{ backgroundColor: "#111111", borderBottom: "1px solid #2a2a2a" }}
       >
         <Link
-          to="/"
+          to="/seller/dashboard"
           className="text-xl font-black tracking-tighter"
           style={{ color: "#f5c518", textDecoration: "none", letterSpacing: "-0.03em" }}
         >
           SNITCH
         </Link>
+
 
         <div className="flex items-center gap-6">
           <Link
